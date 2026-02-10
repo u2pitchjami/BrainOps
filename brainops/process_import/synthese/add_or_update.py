@@ -113,7 +113,17 @@ def new_synthesis(
         wc = count_words(final_synth_body_content)
         lang = detect(final_synth_body_content)
         fhash = hash_content(content=final_synth_body_content)
-        hs = hash_source(meta_synth_final.source)
+        logger.debug("[DEBUG] new_synthesis: word_count=%d, source=%s", wc, meta_synth_final.source)
+        if (
+            meta_synth_final.source is None
+            or meta_synth_final.source.strip() == ""
+            or meta_synth_final.source.strip().lower() == "none"
+        ):
+            hs = hash_source(sanitize_yaml_title(meta_synth_final.title))
+            logger.debug("[DEBUG] source vide ou None, hash basé sur le titre: %s -> %s", meta_synth_final.title, hs)
+        else:
+            hs = hash_source(meta_synth_final.source)
+            logger.debug("[DEBUG] hash basé sur la source: %s -> %s", meta_synth_final.source, hs)
         modified_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         note = Note(
             title=sanitize_yaml_title(meta_synth_final.title),

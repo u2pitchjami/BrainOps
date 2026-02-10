@@ -7,6 +7,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 import re
 
+from brainops.utils.logger import LoggerProtocol, ensure_logger
+
 
 def split_large_note(content: str, max_words: int = 1000) -> list[str]:
     """
@@ -57,50 +59,99 @@ def split_large_note_by_titles(content: str) -> list[str]:
     return blocks
 
 
-def split_large_note_by_titles_and_words(content: str, word_limit: int = 1000) -> list[str]:
+def split_text_safely(text: str, max_chars: int = 3800, logger: LoggerProtocol | None = None) -> list[str]:
     """
-    Découpe par titres, puis regroupe en paquets ≤ word_limit mots, sans briser les sections.
+    Découpe robuste :
+
+    1. paragraphes (si présents)
+    2. fallback linéaire par caractères
     """
-    title_pattern = r"(?m)^(\#{1,5})\s+.*$"
-    matches = list(re.finditer(title_pattern, content))
+    logger = ensure_logger(logger, __name__)
+    logger.warning("split_text_safely activé (texte de %d chars)", len(text))
+    text = text.strip()
+    if not text:
+        return []
 
-    blocks: list[str] = []
-    temp_block: list[str] = []
-    word_count = 0
+    if len(text) <= max_chars:
+        logger.debug("Texte OK, pas de split nécessaire")
+        return [text]
 
-    def add_block() -> None:
-        if temp_block:
-            blocks.append("\n\n".join(temp_block))
-            temp_block.clear()
+    paragraphs = [p for p in re.split(r"\n{2,}", text) if p.strip()]
+    if len(paragraphs) > 1:
+        logger.debug("Texte structuré en %d paragraphes, split par paragraphes", len(paragraphs))
+        chunks: list[str] = []
+        buf = ""
 
-    if matches:
-        if matches[0].start() > 0:
-            intro = content[: matches[0].start()].strip()
-            if intro:
-                temp_block.append("## **Introduction**\n\n" + intro)
-                word_count += len(intro.split())
+        for p in paragraphs:
+            if not buf:
+                buf = p
+                continue
 
-        for i, match in enumerate(matches):
-            title = match.group().strip()
-            start_pos = match.end()
-            end_pos = matches[i + 1].start() if i + 1 < len(matches) else len(content)
-            section_content = content[start_pos:end_pos].strip()
-            section_words = len(section_content.split())
+            if len(buf) + 2 + len(p) <= max_chars:
+                buf = f"{buf}\n\n{p}"
+            else:
+                chunks.append(buf)
+                buf = p
 
-            if word_count + section_words > word_limit:
-                add_block()
-                word_count = 0
+        if buf:
+            chunks.append(buf)
 
-            temp_block.append(f"{title}\n{section_content}")
-            word_count += section_words
+        return chunks
 
-        add_block()
-    else:
-        intro = content.strip()
-        if intro:
-            blocks.append("## **Introduction**\n" + intro)
+    # 🔴 fallback ultime (transcription audio)
+    logger.warning("Fallback split linéaire (aucun paragraphe détecté)")
+    return [text[i : i + max_chars] for i in range(0, len(text), max_chars)]
 
-    return blocks
+
+def split_section_if_needed(
+    title: str, content: str, max_chars: int = 3800, logger: LoggerProtocol | None = None
+) -> list[str]:
+    """
+    Garantit qu'une section Markdown respecte la limite caractères.
+    """
+    logger = ensure_logger(logger, __name__)
+    logger.debug("Vérification section '%s' (%d chars)", title.strip(), len(content.strip()))
+    header = title.strip()
+    body = content.strip()
+    full = f"{header}\n{body}"
+
+    if len(full) <= max_chars:
+        logger.debug("Section '%s' OK (%d chars)", header, len(full))
+        return [full]
+
+    logger.info("Section trop longue, découpage activé: %s", header)
+    sub_chunks = split_text_safely(body, max_chars=max_chars)
+
+    return [f"{header}\n{chunk}".strip() for chunk in sub_chunks]
+
+
+def split_linear_text(
+    text: str,
+    max_chars: int = 3800,
+    overlap: int = 350,
+) -> list[str]:
+    """
+    Fallback ultime pour texte sans paragraphes (ex: transcription audio).
+    """
+    text = text.strip()
+    if not text:
+        return []
+
+    chunks: list[str] = []
+    start = 0
+    length = len(text)
+
+    while start < length:
+        end = min(start + max_chars, length)
+        chunk = text[start:end]
+
+        if chunks:
+            chunk = text[max(0, start - overlap) : end]
+
+        chunks.append(chunk.strip())
+        start += max_chars - overlap
+
+    return chunks
 
 
 def ensure_titles_in_blocks(blocks: Sequence[str], default_title: str = "# Introduction") -> list[str]:

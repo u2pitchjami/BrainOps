@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+from brainops.header.header_utils import hash_source
 from brainops.header.headers import make_properties
 from brainops.io.paths import exists, remove_file
 from brainops.models.exceptions import BrainOpsError, ErrCode
@@ -25,6 +26,7 @@ from brainops.sql.notes.db_update_notes import update_obsidian_note, update_obsi
 from brainops.utils.config import SAV_PATH
 from brainops.utils.files import clean_content, copy_file_with_date
 from brainops.utils.logger import get_logger
+from brainops.utils.normalization import sanitize_created, sanitize_yaml_title
 
 logger = get_logger("Brainops Imports")
 
@@ -66,6 +68,22 @@ def import_normal(filepath: str | Path, note_id: int, ctx: NoteContext, force_ca
                 ctx={"step": "import_normal", "note_id": note_id, "filepath": filepath},
             )
         meta_yaml = ctx.note_metadata
+        if meta_yaml.title is None or meta_yaml.title.strip() == "" or meta_yaml.title.strip().lower() == "untitled":
+            meta_yaml.title = sanitize_yaml_title(name)
+
+        if meta_yaml.source is None or meta_yaml.source.strip() == "" or meta_yaml.source.strip().lower() == "none":
+            ctx.note_db.source_hash = hash_source(sanitize_yaml_title(meta_yaml.title))
+            logger.debug(
+                "[DEBUG] source vide ou None, \
+                hash basé sur le titre:\
+                    %s -> \
+                        %s",
+                meta_yaml.title,
+                ctx.note_db.source_hash,
+            )
+        else:
+            ctx.note_db.source_hash = hash_source(meta_yaml.source)
+            logger.debug("[DEBUG] hash basé sur la source: %s -> %s", meta_yaml.source, ctx.note_db.source_hash)
         content = clean_content(ctx.note_content)
         wc = ctx.note_wc
         if force_categ is False:
@@ -143,7 +161,7 @@ def import_normal(filepath: str | Path, note_id: int, ctx: NoteContext, force_ca
             "title": meta_final.title,
             "source": meta_final.source,
             "author": meta_final.author,
-            "created_at": meta_final.created,
+            "created_at": sanitize_created(meta_final.created),
             "modified_at": modified_at,
             "content_hash": ctx.note_db.content_hash,
             "source_hash": ctx.note_db.source_hash,

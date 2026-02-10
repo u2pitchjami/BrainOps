@@ -278,8 +278,9 @@ def _resolve_destination(note_type: str, note_id: int, *, logger: LoggerProtocol
         if not cat_folder_id:
             cat_folder_id = add_folder(folder_path=categ_path, logger=logger)
         logger.debug(f"cat_folder_id: {cat_folder_id}")
+        categ_path = Path(get_folder_path_by_id(folder_id=cat_folder_id, logger=logger))
         if subcategory_name is not None:
-            subcateg_path = Path(Z_STORAGE_PATH) / category_name / subcategory_name
+            subcateg_path = categ_path / subcategory_name
             logger.debug(f"subcateg_path: {subcateg_path}")
             sub_folder_id = is_folder_exist(folderpath=str(subcateg_path), logger=logger)
             if not sub_folder_id:

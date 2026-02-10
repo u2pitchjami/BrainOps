@@ -9,12 +9,12 @@ import json
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.ollama.ollama_call import OllamaError, call_ollama_with_retry
 from brainops.ollama.prompts import PROMPTS
+from brainops.process_import.split.split_main import smart_split_for_embeddings, split_large_note_by_titles_and_words
 from brainops.process_import.split.split_qa_paragraphs import split_qa_paragraphs
 from brainops.process_import.split.split_utils import (
     ensure_titles_in_blocks,
     split_large_note,
     split_large_note_by_titles,
-    split_large_note_by_titles_and_words,
 )
 from brainops.process_import.split.split_windows_by_paragraphs import split_windows_by_paragraphs
 from brainops.sql.temp_blocs.db_error_temp_blocs import mark_bloc_as_error
@@ -35,7 +35,7 @@ def process_large_note(
     content: str,
     entry_type: str | None = None,
     word_limit: int = 100,
-    split_method: str = "titles_and_words",
+    split_method: str = "auto",
     write_file: bool = True,
     send_to_model: bool = True,
     model_name: str | None = None,
@@ -55,8 +55,10 @@ def process_large_note(
 
     try:
         # --- split
-        if split_method == "titles_and_words":
-            blocks = split_large_note_by_titles_and_words(content, word_limit=word_limit)
+        if split_method == "auto":
+            blocks = smart_split_for_embeddings(content)
+        elif split_method == "titles_and_words":
+            blocks = split_large_note_by_titles_and_words(content)
         elif split_method == "titles":
             blocks = split_large_note_by_titles(content)
         elif split_method == "words":

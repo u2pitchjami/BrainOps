@@ -107,6 +107,11 @@ DUPLICATES_PATH: str = get_path_required("DUPLICATES_PATH")
 IMPORTS_PATH: str = get_path_required("IMPORTS_PATH")
 ERRORED_PATH: str = get_path_required("ERRORED_PATH")
 ERRORED_JSON: str = get_str("ERRORED_JSON")
+MANIFEST_DIR = str(get_path_required("MANIFEST_DIR"))
+WORK_DIR = str(get_path_required("WORK_DIR"))
+
+MAINTENANCE_TIMING: int = get_int("MAINTENANCE_TIMING", 3600)
+LOCK_PURGE: int = get_int("LOCK_PURGE", 7200)
 
 WATCHDOG_POLL_INTERVAL: float = get_float("WATCHDOG_POLL_INTERVAL", 1.0)
 WATCHDOG_DEBOUNCE_WINDOW: float = get_float("WATCHDOG_DEBOUNCE_WINDOW", 0.5)

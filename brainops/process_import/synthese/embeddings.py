@@ -21,7 +21,7 @@ def make_embeddings_synthesis(
     *,
     source: str = "normal",
     mode: str = "ajust",
-    split_method: str = "titles_and_words",
+    split_method: str = "auto",
     logger: LoggerProtocol | None = None,
 ) -> str | None:
     """

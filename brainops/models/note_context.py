@@ -50,6 +50,7 @@ class NoteContext:
 
         Retourne un dict {champ: nouvelle_valeur} filtré selon _ALLOWED_COLUMNS.
         """
+        self.logger = ensure_logger(self.logger, __name__)
         changes: dict[str, Any] = {}
 
         # --- Cas file_path (spécial move) ---
@@ -60,6 +61,9 @@ class NoteContext:
         if self.note_metadata:
             title = sanitize_yaml_title(self.note_metadata.title)
             if title and title != self.note_db.title:
+                if title.strip() == "" or title.strip().lower() == "untitled":
+                    title = Path(self.file_path).stem
+                    self.logger.debug("Titre vide ou None, mise à jour du titre basé sur le nom de fichier: %s", title)
                 changes["title"] = title
 
             if self.note_metadata.summary != self.note_db.summary:

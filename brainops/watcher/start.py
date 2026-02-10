@@ -18,6 +18,8 @@ from brainops.io.paths import to_rel
 from brainops.models.event import EventType
 from brainops.utils.config import (
     BASE_PATH,
+    LOCK_PURGE,
+    MAINTENANCE_TIMING,
     WATCHDOG_DEBOUNCE_WINDOW,
     WATCHDOG_POLL_INTERVAL,
 )
@@ -91,7 +93,7 @@ def start_watcher(*, logger: LoggerProtocol | None = None) -> None:
         while True:
             time.sleep(0.5)
             now = time.monotonic()
-            if now - last_maintenance >= 3600:  # toutes les heures
+            if now - last_maintenance >= MAINTENANCE_TIMING:
                 logger.info("🪵 Etat Horaire")
                 log_event_queue()
                 locks = LOCK_MGR.get_all_locks()
@@ -99,10 +101,11 @@ def start_watcher(*, logger: LoggerProtocol | None = None) -> None:
                 for key, ts in locks.items():
                     age = int(time.time() - ts)  # ts = epoch seconds
                     logger.info("  - %s | actif depuis %d s", key, age)
-                logger.info("🧹 Purge des locks expirés (timeout=7200s)")
-                LOCK_MGR.purge_expired(timeout=7200)
+                logger.info("🧹 Purge des locks expirés (timeout=%d s)", LOCK_PURGE)
+                LOCK_MGR.purge_expired(timeout=LOCK_PURGE)
                 last_maintenance = now
                 enqueue_event({"type": "script", "action": "reconcile", "path": "path"})
+                enqueue_event({"type": "script", "action": "audio", "path": "path"})
 
     except KeyboardInterrupt:
         logger.info("Arrêt demandé (CTRL+C).")

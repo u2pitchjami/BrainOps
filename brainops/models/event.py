@@ -8,7 +8,7 @@ from typing import Literal, NotRequired, TypedDict
 
 from brainops.models.note import Note
 
-EventAction = Literal["created", "deleted", "modified", "moved", "reconcile"]
+EventAction = Literal["created", "deleted", "modified", "moved", "reconcile", "audio"]
 EventType = Literal["file", "directory", "script"]
 
 

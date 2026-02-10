@@ -5,8 +5,10 @@ queue.
 # watcher/queue_manager.py
 from __future__ import annotations
 
+from pathlib import Path
 from queue import Queue
 
+from brainops.ingest.audio_pipeline import process_audio_manifests
 from brainops.io.paths import exists
 from brainops.models.event import DirEvent, Event
 from brainops.models.exceptions import BrainOpsError
@@ -123,6 +125,17 @@ def process_queue() -> None:
                             logger.warning("[WARN] ❌ Note non trouvée: (id=%s) %s", note_id, file_path)
                             continue
                     ctx = NoteContext(note_db=note_db, file_path=file_path, src_path=src_path, logger=logger)
+                    logger.debug("[DEBUG] NoteContext créé: (id=%s) ctx: %s", note_id, ctx)
+                    if (
+                        ctx.note_db.title is None
+                        or ctx.note_db.title.strip() == ""
+                        or ctx.note_db.title.strip().lower() == "untitled"
+                    ):
+                        logger.debug(
+                            "[DEBUG] Titre vide ou None, mise à jour du titre basé sur le nom de fichier: %s",
+                            Path(file_path).stem,
+                        )
+                        ctx.note_db.title = Path(file_path).stem
                     update_note_context(ctx)
                     logger.debug("[DEBUG] Note créée: (id=%s) ctx: %s", note_id, ctx)
 
@@ -173,6 +186,8 @@ def process_queue() -> None:
             if etype == "script":
                 if action == "reconcile":
                     run_reconcile_scripts()
+                if action == "audio":
+                    process_audio_manifests()
 
             logger.debug("[DEBUG] Fini: %s - %s", etype, action)
             log_event_queue()

@@ -18,7 +18,7 @@ def large_or_standard_note(
     prompt_key: str | None = None,
     model_ollama: str | None = None,
     word_limit: int = 1000,
-    split_method: str = "titles_and_words",
+    split_method: str = "auto",
     write_file: bool = True,
     send_to_model: bool = True,
     custom_prompts: dict[str, str] | None = None,
