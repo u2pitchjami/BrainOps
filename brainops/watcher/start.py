@@ -17,7 +17,7 @@ from watchdog.observers.polling import PollingObserver
 from brainops.io.paths import to_rel
 from brainops.models.event import EventType
 from brainops.utils.config import (
-    BASE_PATH,
+    BASE_NOTES,
     LOCK_PURGE,
     MAINTENANCE_TIMING,
     WATCHDOG_DEBOUNCE_WINDOW,
@@ -64,7 +64,7 @@ def start_watcher(*, logger: LoggerProtocol | None = None) -> None:
     Démarre la surveillance du vault Obsidian (PollingObserver).
 
     Lit la config via .env :
-      - BASE_PATH (obligatoire, chemin existant)
+      - BASE_NOTES (obligatoire, chemin existant)
       - WATCHDOG_POLL_INTERVAL (float, défaut 1.0)
       - WATCHDOG_DEBOUNCE_WINDOW (float, défaut 0.5)
     """
@@ -72,7 +72,7 @@ def start_watcher(*, logger: LoggerProtocol | None = None) -> None:
     logger.info(
         "Watcher démarré (PollingObserver, interval=%.2fs) sur %s",
         WATCHDOG_POLL_INTERVAL,
-        BASE_PATH,
+        BASE_NOTES,
     )
     if os.environ.get("USE_POLLING", "0") == "1":
         print("🔁 [Watcher] Polling forcé via USE_POLLING=1")
@@ -83,10 +83,11 @@ def start_watcher(*, logger: LoggerProtocol | None = None) -> None:
         observer = Observer()
 
     handler = NoteHandler(logger=logger, debounce_window=WATCHDOG_DEBOUNCE_WINDOW)
-    observer.schedule(handler, BASE_PATH, recursive=True)
+    observer.schedule(handler, BASE_NOTES, recursive=True)
     observer.start()
     worker = _start_queue_thread()
     enqueue_event({"type": "script", "action": "reconcile", "path": "path"})
+    enqueue_event({"type": "script", "action": "audio", "path": "path"})
 
     last_maintenance = time.monotonic()
     try:

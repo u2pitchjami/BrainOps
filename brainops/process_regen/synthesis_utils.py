@@ -26,6 +26,7 @@ def regen_synthese_from_archive(
     synthesis_path: str,
     meta_final: NoteMetadata,
     classification: ClassificationResult,
+    media_id: int | None = None,
     logger: LoggerProtocol | None = None,
 ) -> bool:
     """
@@ -54,6 +55,7 @@ def regen_synthese_from_archive(
         synthesis = process_import_syntheses(
             content=content,
             note_id=note_id,
+            media_id=media_id,
             archive_path=Path(archive_path),
             synthesis_path=Path(synthesis_path),
             meta_final=meta_final,
@@ -136,6 +138,7 @@ def go_synthesis(
         logger.info("[MODIFIED] ✨ (id=%s) : Lancement Regen Synthesis", ctx_parent.note_db.id or note_id)
         synthesis = regen_synthese_from_archive(
             note_id=note_id if ctx.note_db.status == "synthesis" else ctx.note_db.parent_id,
+            media_id=ctx_parent.note_db.media_id or ctx.note_db.media_id,
             content=ctx_parent.note_content or ctx.note_content,
             archive_path=ctx_parent.file_path or filepath,
             synthesis_path=filepath if str(ctx.note_db.status) == "synthesis" else synthesis_path,

@@ -30,6 +30,7 @@ _ALLOWED_COLUMNS: set[str] = {
     "content_hash",
     "source_hash",
     "lang",
+    "media_id",
 }
 
 

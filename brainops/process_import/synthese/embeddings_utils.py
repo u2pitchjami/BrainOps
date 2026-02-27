@@ -10,7 +10,6 @@ import numpy as np
 from numpy.typing import NDArray
 from sklearn.metrics.pairwise import cosine_similarity
 
-from brainops.io.utils import count_words
 from brainops.sql.temp_blocs.db_embeddings_temp_blocs import get_blocks_and_embeddings_by_note
 from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
 
@@ -19,13 +18,14 @@ MODES = {
     "standard": {"ratio": 0.30, "use_mmr": True, "mmr_lambda": 0.7},
     "audit": {"ratio": 0.50, "use_mmr": True, "mmr_lambda": 0.6},
     "gpt": {"ratio": 0.45, "use_mmr": True, "mmr_lambda": 0.6},
+    "podcast": {"ratio": 0.30, "use_mmr": True, "mmr_lambda": 0.3},
 }
 
 
 def select_top_blocks_by_mode(
     content: str,
     note_id: int,
-    mode: str = "standard",
+    mode_def: str = "standard",
     *,
     logger: LoggerProtocol | None = None,
     **overrides: float | bool,
@@ -35,21 +35,12 @@ def select_top_blocks_by_mode(
     ex: select_top_blocks_by_mode(note_id, "audit", ratio=0.55)
     """
     logger = ensure_logger(logger, __name__)
-    logger.debug("[DEBUG] select_top_blocks_by_mode mode: %s", mode)
-
-    if mode == "ajust":
-        nb_words = count_words(content=content, logger=logger)
-        if nb_words < 300:
-            mode_def = "quick"
-        else:
-            mode_def = "standard"
-    else:
-        mode_def = mode
+    logger.debug("[DEBUG] select_top_blocks_by_mode mode: %s", mode_def)
 
     cfg = MODES.get(mode_def, MODES["standard"]).copy()
     logger.debug("[DEBUG] select_top_blocks_by_mode cfg: %s", cfg)
     cfg.update(overrides)  # ex: ratio=0.55 locale
-    logger.info("[SELECT] mode=%s cfg=%s", mode, cfg)
+    logger.info("[SELECT] mode=%s cfg=%s", mode_def, cfg)
 
     return select_top_blocks(
         note_id=note_id,
@@ -146,7 +137,12 @@ def select_top_blocks(
 
     try:
         if use_mmr:
-            top_idx = _mmr_select(target, arr, top_k=N, lambda_mult=mmr_lambda)
+            central_idx = _mmr_select(target, arr, top_k=N, lambda_mult=mmr_lambda)
+            # moments forts = plus éloignés du centroïde
+            distances = np.linalg.norm(arr - target, axis=1)
+            strong_idx = distances.argsort()[-2:]
+
+            top_idx = list(set(central_idx + strong_idx.tolist()))
         else:
             top_idx = sims.argsort()[-N:][::-1].tolist()
     except Exception as exc:  # pylint: disable=broad-except

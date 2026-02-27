@@ -97,6 +97,7 @@ LOG_LEVEL: str = get_str("LOG_LEVEL", "INFO").upper()
 
 # PATHS
 BASE_PATH: str = get_required("BASE_PATH")
+BASE_NOTES: str = get_required("BASE_NOTES")
 Z_STORAGE_PATH: str = get_path_required("Z_STORAGE_PATH")
 SAV_PATH: str = get_path_required("SAV_PATH")
 SIMILARITY_WARNINGS_LOG: str = get_str("SIMILARITY_WARNINGS_LOG", "/logs/similarity_warnings.log")
@@ -107,8 +108,8 @@ DUPLICATES_PATH: str = get_path_required("DUPLICATES_PATH")
 IMPORTS_PATH: str = get_path_required("IMPORTS_PATH")
 ERRORED_PATH: str = get_path_required("ERRORED_PATH")
 ERRORED_JSON: str = get_str("ERRORED_JSON")
-MANIFEST_DIR = str(get_path_required("MANIFEST_DIR"))
-WORK_DIR = str(get_path_required("WORK_DIR"))
+MANIFEST_DIR: str = get_str("MANIFEST_DIR")
+WORK_DIR: str = get_str("WORK_DIR")
 
 MAINTENANCE_TIMING: int = get_int("MAINTENANCE_TIMING", 3600)
 LOCK_PURGE: int = get_int("LOCK_PURGE", 7200)

@@ -62,22 +62,22 @@ def add_folder_context(path: str | Path, logger: LoggerProtocol | None = None) -
         parts = p_str.split(os.sep)
         logger.debug("[DEBUG] folder context nb parts: %s", len(parts))
         if path_is_inside(Z_STORAGE_PATH, p_str):
-            if len(parts) == 2:
-                category = parts[1]
-                logger.debug("[DEBUG] part=2 add_folder_context category (%s)", category)
-            elif len(parts) == 3:
-                category, subcategory = parts[1], parts[2]
-                logger.debug("[DEBUG] part=3 add_folder_context category (%s) sub %s", category, subcategory)
-            elif len(parts) == 4 and parts[3].lower() == "archives":
-                category, subcategory = parts[1], parts[2]
+            if len(parts) == 3:
+                category = parts[2]
+                logger.debug("[DEBUG] part=3 add_folder_context category (%s)", category)
+            elif len(parts) == 4:
+                category, subcategory = parts[2], parts[3]
+                logger.debug("[DEBUG] part=4 add_folder_context category (%s) sub %s", category, subcategory)
+            elif len(parts) == 5 and parts[4].lower() == "archives":
+                category, subcategory = parts[2], parts[3]
                 logger.debug("[DEBUG] part=4 add_folder_context category (%s) sub %s", category, subcategory)
                 ftype = FolderType.ARCHIVE
         else:
-            if len(parts) == 1:
-                category = parts[0]
+            if len(parts) == 2:
+                category = parts[1]
                 logger.debug("[DEBUG] part=1 add_folder_context category (%s)", category)
-            elif len(parts) >= 2:
-                category, subcategory = parts[0], parts[1]
+            elif len(parts) >= 3:
+                category, subcategory = parts[1], parts[2]
                 logger.debug("[DEBUG] part=2 add_folder_context category (%s) sub %s", category, subcategory)
 
         if category:

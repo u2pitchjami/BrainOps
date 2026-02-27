@@ -86,6 +86,7 @@ def update_synthesis(
 def new_synthesis(
     final_synth_body_content: str,
     note_id: int,
+    media_id: int | None,
     synthesis_path: Path,
     meta_synth_final: NoteMetadata,
     classification: ClassificationResult,
@@ -142,6 +143,7 @@ def new_synthesis(
             content_hash=fhash,
             source_hash=hs,
             lang=lang,
+            media_id=media_id,
         )
 
         # ---- upsert en DB -----------------------------------------------------

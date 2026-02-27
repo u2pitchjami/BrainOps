@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+import time
 from typing import Literal, NotRequired, TypedDict
 
 from brainops.models.note import Note
@@ -47,3 +49,17 @@ class Event(TypedDict, total=True):
     src_path: NotRequired[str]
     Note: NotRequired[Note | None]
     new_path: NotRequired[str]  # legacy (si jamais encore utilisé)
+
+
+@dataclass(slots=True)
+class QueuedNoteContext:
+    """
+    Technical wrapper for a queued processing unit.
+    """
+
+    event: Event
+    note: Note | None
+    lock_key: str | None
+
+    created_at: float = field(default_factory=time.time)
+    retry_count: int = 0

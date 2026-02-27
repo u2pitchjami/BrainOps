@@ -13,7 +13,6 @@ from brainops.io.paths import exists, remove_file
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.metadata import NoteMetadata
 from brainops.models.note_context import NoteContext
-from brainops.ollama.check_ollama import check_ollama_health
 from brainops.process_folders.folders import ensure_folder_exists
 from brainops.process_import.get_type.by_ollama import get_type_by_ollama
 from brainops.process_import.join.join_header_body import join_header_body
@@ -53,14 +52,6 @@ def import_normal(filepath: str | Path, note_id: int, ctx: NoteContext, force_ca
 
     try:
         logger.info("[INFO] Vérification de l'état d'Ollama...")
-        check = check_ollama_health(logger=logger)
-        if not check:
-            logger.error("[ERREUR] 🚨 Ollama ne répond pas, import annulé pour (id=%s)", note_id)
-            raise BrainOpsError(
-                "[IMPORT] ❌ Check Ollama KO",
-                code=ErrCode.OLLAMA,
-                ctx={"step": "import_normal", "note_id": note_id, "filepath": filepath},
-            )
         if not ctx.note_content or not ctx.note_metadata or not ctx.note_wc:
             raise BrainOpsError(
                 "[IMPORT] ❌ données ctx innaccessibles",
@@ -195,7 +186,14 @@ def import_normal(filepath: str | Path, note_id: int, ctx: NoteContext, force_ca
 
         # 5) Génération de la synthèse
         synthesis = process_import_syntheses(
-            content, note_id, archive_path, synthesis_path, meta_final, classification, logger=logger
+            content=content,
+            note_id=note_id,
+            archive_path=archive_path,
+            synthesis_path=synthesis_path,
+            meta_final=meta_final,
+            classification=classification,
+            media_id=ctx.note_db.media_id,
+            logger=logger,
         )
 
         if not synthesis:

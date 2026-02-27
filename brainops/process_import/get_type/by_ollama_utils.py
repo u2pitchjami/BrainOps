@@ -19,9 +19,10 @@ from brainops.process_import.utils.divers import (
     prompt_name_and_model_selection,
 )
 from brainops.sql.categs.db_dictionary_categ import (
-    generate_categ_dictionary,
+    generate_categ_dictionary_for_llm,
     generate_optional_subcategories,
     get_categ_id_from_name,
+    get_root_categories,
     get_subcateg_from_categ,
 )
 from brainops.sql.folders.db_folder_utils import (
@@ -75,94 +76,139 @@ def clean_note_type(parse_category: str, logger: LoggerProtocol | None = None) -
 @with_child_logger
 def find_similar_levenshtein(
     name: str,
-    existing_names: str,
+    existing_names: list[str],
     threshold_low: float = 0.7,
     entity_type: str = "subcategory",
     logger: LoggerProtocol | None = None,
 ) -> list[tuple[str, float]]:
     """
-    find_similar_levenshtein _summary_
+    Compare `name` à une liste de noms existants via Levenshtein ratio.
 
-    _extended_summary_
-
-    Args:
-        name (str): _description_
-        existing_names (list[str]): _description_
-        threshold_low (float, optional): _description_. Defaults to 0.7.
-        entity_type (str, optional): _description_. Defaults to "subcategory".
-
-    Returns:
-        _type_: _description_
+    Retourne les correspondances >= threshold_low triées par score décroissant.
     """
     logger = ensure_logger(logger, __name__)
-    logger.debug(
-        f"[DEBUG] find_similar_levenshtein: name={name}, existing_names={existing_names}, entity_type={entity_type}"
-    )
+
+    if not isinstance(existing_names, list):
+        raise TypeError(f"existing_names must be list[str], got {type(existing_names)}")
+
     similar: list[tuple[str, float]] = []
+
     try:
         for existing in existing_names:
+            if not existing:
+                continue
+
             similarity = ratio(name, existing)
-            logger.debug(f"[DEBUG] Similarity test '{name}' vs '{existing}' = {similarity:.2f}")
+            logger.debug(
+                "[DEBUG] Similarity test '%s' vs '%s' = %.2f",
+                name,
+                existing,
+                similarity,
+            )
+
             if similarity >= threshold_low:
                 similar.append((existing, similarity))
-    except Exception as exc:
+
+    except Exception as exc:  # pragma: no cover
         raise BrainOpsError(
             "[METADATA] ❌ Erreur dans la recherche de similarité",
             code=ErrCode.METADATA,
             ctx={"fonction": "find_similar_levenshtein", "name": name},
         ) from exc
+
     return sorted(similar, key=lambda x: x[1], reverse=True)
 
 
 @with_child_logger
-def prep_and_similarity_test(note_type: str, logger: LoggerProtocol | None = None) -> str:
+def prep_and_similarity_test(
+    note_type: str,
+    logger: LoggerProtocol | None = None,
+) -> str:
+    """
+    Prépare la proposition IA (format 'category/subcategory') et applique le test de similarité.
+    """
     logger = ensure_logger(logger, __name__)
+
+    real_category_name: str | None = None
+    real_subcategory_name: str | None = None
+
     try:
+        if not note_type:
+            raise BrainOpsError(
+                "[METADATA] ❌ note_type vide",
+                code=ErrCode.METADATA,
+                ctx={"note_type": note_type},
+            )
+
         parts = [p.strip() for p in note_type.split("/", 1)]
+
         category_name = parts[0].lower()
         subcategory_name = parts[1].lower() if len(parts) == 2 and parts[1] else "unknow"
+
         if not category_name:
             raise BrainOpsError(
                 "[METADATA] ❌ Impossible de parser la proposition Ollama",
                 code=ErrCode.METADATA,
-                ctx={"fonction": "prep_and_similarity_test", "note_type": note_type},
+                ctx={"note_type": note_type},
             )
-        list_categ = generate_categ_dictionary(for_similar=True, logger=logger)
-        logger.debug(f"list_categ: {list_categ}")
+
+        # ✅ IMPORTANT : récupération liste métier (list[str])
+        list_categ = get_root_categories(logger=logger)
+
         real_category_name = check_and_handle_similarity(
-            category_name, existing_names=list_categ, entity_type="category"
+            category_name,
+            existing_names=list_categ,
+            entity_type="category",
+            logger=logger,
         )
-        logger.debug(f"real_category_name: {real_category_name}")
-        if subcategory_name is not None and real_category_name:
-            cat_id = get_categ_id_from_name(name=real_category_name, logger=logger)
-            logger.debug(f"cat_id: {cat_id}")
-            if cat_id is None:
-                real_subcategory_name = subcategory_name
-            else:
-                subcategs = get_subcateg_from_categ(categ_id=cat_id, logger=logger)
-                if subcategs:
-                    logger.debug(f"subcategs: {subcategs}")
-                    check_subcategory_name = check_and_handle_similarity(
-                        subcategory_name, existing_names=subcategs, entity_type="subcategory"
-                    )
-                else:
-                    check_subcategory_name = subcategory_name
-                logger.debug(f"check_subcategory_name: {check_subcategory_name}")
-                if check_subcategory_name:
-                    real_subcategory_name = check_subcategory_name
-            if real_subcategory_name:
-                return f"{real_category_name}/{real_subcategory_name}"
-        raise BrainOpsError(
-            "[METADATA] ❌ Recherche Categ/Sub KO",
-            code=ErrCode.METADATA,
-            ctx={"step": "prep_and_similarity_test", "note_type": note_type},
+
+        if not real_category_name:
+            raise BrainOpsError(
+                "[METADATA] ❌ Catégorie invalide après similarité",
+                code=ErrCode.METADATA,
+                ctx={"category_name": category_name},
+            )
+
+        # ----- Gestion sous-catégorie -----
+
+        cat_id = get_categ_id_from_name(
+            name=real_category_name,
+            logger=logger,
         )
+
+        if cat_id:
+            subcategs = get_subcateg_from_categ(
+                categ_id=cat_id,
+                logger=logger,
+            )
+        else:
+            subcategs = []
+
+        if subcategs:
+            real_subcategory_name = check_and_handle_similarity(
+                subcategory_name,
+                existing_names=subcategs,
+                entity_type="subcategory",
+                logger=logger,
+            )
+        else:
+            real_subcategory_name = subcategory_name
+
+        if not real_subcategory_name:
+            raise BrainOpsError(
+                "[METADATA] ❌ Sous-catégorie invalide après similarité",
+                code=ErrCode.METADATA,
+                ctx={"subcategory_name": subcategory_name},
+            )
+
+        return f"{real_category_name}/{real_subcategory_name}"
+
     except Exception as exc:
         raise BrainOpsError(
             "[METADATA] ❌ Check similarités categ/subcateg KO",
             code=ErrCode.METADATA,
             ctx={
-                "fonction": "_classify_with_llm",
+                "note_type": note_type,
                 "real_category_name": real_category_name,
                 "real_subcategory_name": real_subcategory_name,
             },
@@ -172,48 +218,67 @@ def prep_and_similarity_test(note_type: str, logger: LoggerProtocol | None = Non
 @with_child_logger
 def check_and_handle_similarity(
     name: str,
-    existing_names: str,
+    existing_names: list[str],
     threshold_low: float = 0.7,
     entity_type: str = "subcategory",
     logger: LoggerProtocol | None = None,
 ) -> str | None:
     """
-    check_and_handle_similarity _summary_
+    Vérifie si `name` est similaire à un nom existant.
 
-    _extended_summary_
-
-    Args:
-        name (str): _description_
-        existing_names (list[str]): _description_
-        threshold_low (float, optional): _description_. Defaults to 0.7.
-        entity_type (str, optional): _description_. Defaults to "subcategory".
-
-    Returns:
-        Optional[str]: _description_
+    - Fusion auto si score >= 0.9
+    - Warning si 0.7 <= score < 0.9
+    - Sinon retourne name
     """
     logger = ensure_logger(logger, __name__)
-    logger.debug(
-        f"[DEBUG] check_and_handle_similarity: name={name}, existing_names={existing_names}, entity_type={entity_type}"
-    )
+
+    if not isinstance(existing_names, list):
+        raise TypeError(f"existing_names must be list[str], got {type(existing_names)}")
+
     threshold_high = 0.9
-    similar = find_similar_levenshtein(name, existing_names, threshold_low, entity_type, logger=logger)
-    logger.debug(f"[DEBUG] similar found: {similar}")
+
+    similar = find_similar_levenshtein(
+        name,
+        existing_names,
+        threshold_low,
+        entity_type,
+        logger=logger,
+    )
+
+    logger.debug("[DEBUG] similar found: %s", similar)
+
     if similar:
         closest, score = similar[0]
+
         if score >= threshold_high:
-            logger.info(f"[INFO] {entity_type} '{name}' similaire à '{closest}' (score: {score:.2f}), on remplace.")
-            # Fusion auto
+            logger.info(
+                "%s '%s' similaire à '%s' (score: %.2f), fusion auto.",
+                entity_type,
+                name,
+                closest,
+                score,
+            )
             return closest
+
         if threshold_low <= score < threshold_high:
-            logger.warning(f"[WARNING] {entity_type} '{name}' proche de '{closest}' (score: {score:.2f}), à vérifier.")
+            logger.warning(
+                "%s '%s' proche de '%s' (score: %.2f), à vérifier.",
+                entity_type,
+                name,
+                closest,
+                score,
+            )
+
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             log_message = (
                 f"[{current_time}] Doute sur {entity_type}: '{name}' proche de '{closest}' (score: {score:.2f})\n"
             )
-            # On log dans le fichier prévu
+
             with open(SIMILARITY_WARNINGS_LOG, "a", encoding="utf-8") as log_file:
                 log_file.write(log_message)
+
             return None
+
     return name
 
 
@@ -232,7 +297,7 @@ def _classify_with_llm(note_id: int, content: str, *, logger: LoggerProtocol | N
         # dictionnaires pour guider le LLM
         subcateg_dict = generate_optional_subcategories(logger=logger)
         logger.debug("[DEBUG] subcateg_dict _classify_with_llm : %s", subcateg_dict)
-        categ_dict = generate_categ_dictionary(logger=logger)
+        categ_dict = generate_categ_dictionary_for_llm(logger=logger)
         logger.debug("[DEBUG] categ_dict _classify_with_llm : %s", categ_dict)
 
         prompt_name, _ = prompt_name_and_model_selection(note_id, key="type", logger=logger)  # note_id pas requis ici

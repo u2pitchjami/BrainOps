@@ -7,26 +7,84 @@ from __future__ import annotations
 from collections.abc import Sequence
 import re
 
+import tiktoken
+
 from brainops.utils.logger import LoggerProtocol, ensure_logger
 
+_ENCODING = tiktoken.get_encoding("cl100k_base")
 
-def split_large_note(content: str, max_words: int = 1000) -> list[str]:
+
+def count_tokens(text: str) -> int:
     """
-    Découpe une note en blocs de taille optimale (max_words).
+    Count tokens using cl100k_base encoding.
     """
-    words = content.split()
-    blocks: list[str] = []
-    current_block: list[str] = []
+    return len(_ENCODING.encode(text))
 
-    for word in words:
-        current_block.append(word)
-        if len(current_block) >= max_words:
-            blocks.append(" ".join(current_block))
-            current_block = []
 
-    if current_block:
-        blocks.append(" ".join(current_block))
-    return blocks
+def split_large_note(
+    content: str,
+    *,
+    max_chars: int = 3800,
+    max_tokens: int | None = None,
+) -> list[str]:
+    """
+    Découpe un texte non structuré en blocs linéaires.
+
+    Priority:
+    - max_tokens if provided
+    - else max_chars
+
+    :param content: Input text.
+    :param max_chars: Maximum characters per chunk (default mode).
+    :param max_tokens: Optional token limit.
+    :return: List of chunks.
+    """
+    content = content.strip()
+    if not content:
+        return []
+
+    # --- Mode selection ---
+    if max_tokens is not None:
+        mode = "tokens"
+        limit = max_tokens
+    else:
+        mode = "chars"
+        limit = max_chars
+
+    chunks: list[str] = []
+
+    if mode == "tokens":
+        words = content.split()
+        buffer: list[str] = []
+        current_tokens = 0
+
+        for word in words:
+            word_tokens = count_tokens(word)
+
+            if current_tokens + word_tokens <= limit:
+                buffer.append(word)
+                current_tokens += word_tokens
+            else:
+                chunks.append(" ".join(buffer))
+                buffer = [word]
+                current_tokens = word_tokens
+
+        if buffer:
+            chunks.append(" ".join(buffer))
+
+        return chunks
+
+    # --- Char mode (plus simple et plus cohérent)
+    start = 0
+    length = len(content)
+
+    while start < length:
+        end = min(start + limit, length)
+        chunk = content[start:end]
+        chunks.append(chunk.strip())
+        start += limit
+
+    return chunks
 
 
 def split_large_note_by_titles(content: str) -> list[str]:
@@ -59,68 +117,89 @@ def split_large_note_by_titles(content: str) -> list[str]:
     return blocks
 
 
-def split_text_safely(text: str, max_chars: int = 3800, logger: LoggerProtocol | None = None) -> list[str]:
+def split_text_safely(
+    text: str,
+    max_chars: int = 3800,
+    max_tokens: int | None = None,
+    logger: LoggerProtocol | None = None,
+) -> list[str]:
     """
     Découpe robuste :
 
-    1. paragraphes (si présents)
-    2. fallback linéaire par caractères
+    - paragraphes
+    - fallback linéaire
+    Support tokens optionnel.
     """
     logger = ensure_logger(logger, __name__)
-    logger.warning("split_text_safely activé (texte de %d chars)", len(text))
     text = text.strip()
+
     if not text:
         return []
 
-    if len(text) <= max_chars:
-        logger.debug("Texte OK, pas de split nécessaire")
-        return [text]
+    if max_tokens is not None:
+        if count_tokens(text) <= max_tokens:
+            return [text]
+    else:
+        if len(text) <= max_chars:
+            return [text]
 
     paragraphs = [p for p in re.split(r"\n{2,}", text) if p.strip()]
+
     if len(paragraphs) > 1:
-        logger.debug("Texte structuré en %d paragraphes, split par paragraphes", len(paragraphs))
         chunks: list[str] = []
-        buf = ""
+        buffer: list[str] = []
+        current_size = 0
 
         for p in paragraphs:
-            if not buf:
-                buf = p
-                continue
+            size = count_tokens(p) if max_tokens else len(p)
 
-            if len(buf) + 2 + len(p) <= max_chars:
-                buf = f"{buf}\n\n{p}"
+            limit = max_tokens if max_tokens else max_chars
+
+            if current_size + size <= limit:
+                buffer.append(p)
+                current_size += size
             else:
-                chunks.append(buf)
-                buf = p
+                chunks.append("\n\n".join(buffer))
+                buffer = [p]
+                current_size = size
 
-        if buf:
-            chunks.append(buf)
+        if buffer:
+            chunks.append("\n\n".join(buffer))
 
         return chunks
 
-    # 🔴 fallback ultime (transcription audio)
-    logger.warning("Fallback split linéaire (aucun paragraphe détecté)")
-    return [text[i : i + max_chars] for i in range(0, len(text), max_chars)]
+    # fallback ultime
+    if max_tokens is not None:
+        return split_linear_text(text, max_tokens=max_tokens)
+
+    return split_linear_text(text, max_chars=max_chars)
 
 
 def split_section_if_needed(
-    title: str, content: str, max_chars: int = 3800, logger: LoggerProtocol | None = None
+    title: str,
+    content: str,
+    max_chars: int = 3800,
+    max_tokens: int | None = None,
+    logger: LoggerProtocol | None = None,
 ) -> list[str]:
-    """
-    Garantit qu'une section Markdown respecte la limite caractères.
-    """
     logger = ensure_logger(logger, __name__)
-    logger.debug("Vérification section '%s' (%d chars)", title.strip(), len(content.strip()))
+
     header = title.strip()
     body = content.strip()
     full = f"{header}\n{body}"
 
-    if len(full) <= max_chars:
-        logger.debug("Section '%s' OK (%d chars)", header, len(full))
+    size = count_tokens(full) if max_tokens else len(full)
+    limit = max_tokens if max_tokens else max_chars
+
+    if size <= limit:
         return [full]
 
-    logger.info("Section trop longue, découpage activé: %s", header)
-    sub_chunks = split_text_safely(body, max_chars=max_chars)
+    sub_chunks = split_text_safely(
+        body,
+        max_chars=max_chars,
+        max_tokens=max_tokens,
+        logger=logger,
+    )
 
     return [f"{header}\n{chunk}".strip() for chunk in sub_chunks]
 
@@ -128,26 +207,46 @@ def split_section_if_needed(
 def split_linear_text(
     text: str,
     max_chars: int = 3800,
+    max_tokens: int | None = None,
     overlap: int = 350,
 ) -> list[str]:
     """
-    Fallback ultime pour texte sans paragraphes (ex: transcription audio).
+    Fallback ultime.
     """
     text = text.strip()
     if not text:
         return []
 
-    chunks: list[str] = []
+    if max_tokens is not None:
+        words = text.split()
+        chunks: list[str] = []
+        buffer: list[str] = []
+        current_tokens = 0
+
+        for word in words:
+            word_tokens = count_tokens(word)
+
+            if current_tokens + word_tokens <= max_tokens:
+                buffer.append(word)
+                current_tokens += word_tokens
+            else:
+                chunks.append(" ".join(buffer))
+                buffer = [word]
+                current_tokens = word_tokens
+
+        if buffer:
+            chunks.append(" ".join(buffer))
+
+        return chunks
+
+    # fallback historique char
+    chunks = []
     start = 0
     length = len(text)
 
     while start < length:
         end = min(start + max_chars, length)
         chunk = text[start:end]
-
-        if chunks:
-            chunk = text[max(0, start - overlap) : end]
-
         chunks.append(chunk.strip())
         start += max_chars - overlap
 

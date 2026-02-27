@@ -34,7 +34,8 @@ def process_large_note(
     note_id: int,
     content: str,
     entry_type: str | None = None,
-    word_limit: int = 100,
+    max_chars: int = 3800,
+    max_tokens: int = 1500,
     split_method: str = "auto",
     write_file: bool = True,
     send_to_model: bool = True,
@@ -56,17 +57,21 @@ def process_large_note(
     try:
         # --- split
         if split_method == "auto":
-            blocks = smart_split_for_embeddings(content)
+            blocks = smart_split_for_embeddings(content, max_tokens, max_chars, logger)
         elif split_method == "titles_and_words":
-            blocks = split_large_note_by_titles_and_words(content)
+            blocks = split_large_note_by_titles_and_words(
+                content=content, max_tokens=max_tokens, max_chars=max_chars, logger=logger
+            )
         elif split_method == "titles":
             blocks = split_large_note_by_titles(content)
         elif split_method == "words":
-            blocks = split_large_note(content, max_words=word_limit)
+            blocks = split_large_note(content=content, max_tokens=max_tokens, max_chars=max_chars)
         elif split_method == "qa_paragraphs":
             blocks = split_qa_paragraphs(text=content, logger=logger)
         elif split_method == "split_windows_by_paragraphs":
-            blocks = split_windows_by_paragraphs(text=content)
+            blocks = split_windows_by_paragraphs(
+                text=content, max_tokens=max_tokens, max_chars=max_chars, logger=logger
+            )
         else:
             logger.error("[ERROR] Méthode de split inconnue : %s", split_method)
             raise BrainOpsError("Méthode de split inconnue", code=ErrCode.UNEXPECTED, ctx={"note_id": note_id})
@@ -87,7 +92,7 @@ def process_large_note(
                         prompt=entry_type or "",  # ok si custom_prompts
                         model=model_ollama,
                         split_method=split_method,
-                        word_limit=word_limit,
+                        word_limit=max_tokens,
                         source=source,
                         logger=logger,
                     )
@@ -110,7 +115,7 @@ def process_large_note(
                             prompt=entry_type or "",
                             model=model_ollama,
                             split_method=split_method,
-                            word_limit=word_limit,
+                            word_limit=max_tokens,
                             source=source,
                             logger=logger,
                         )

@@ -3,45 +3,83 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
+# ---------------------------------------------------------------------------
+# Semantic document type (métier)
+# ---------------------------------------------------------------------------
 
-@dataclass
+
+class DocumentSemanticType(str, Enum):
+    ARTICLE = "article"
+    PODCAST = "podcast"
+    INTERVIEW = "interview"
+    REPORT = "report"
+    NOTE = "note"
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def from_str(cls, value: str | None) -> DocumentSemanticType:
+        if not value:
+            return cls.UNKNOWN
+        normalized = value.strip().lower()
+        for member in cls:
+            if member.value == normalized:
+                return member
+        return cls.UNKNOWN
+
+
+# ---------------------------------------------------------------------------
+# Metadata principal
+# ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
 class NoteMetadata:
     title: str = ""
     tags: list[str] = field(default_factory=list)
     summary: str = ""
     category: str = ""
     subcategory: str = ""
+
     created: str | None = None
     last_modified: str | None = None
+
     source: str = ""
     author: str = ""
     status: str = "draft"
     project: str = ""
 
-    # ------------------------- Constructeurs --------------------------------
+    # --- Nouveaux champs métier ---
+    doc_type: DocumentSemanticType = DocumentSemanticType.UNKNOWN
+    provider: str = ""
+    media_source: str = ""
+
+    # -----------------------------------------------------------------------
+    # Constructeurs
+    # -----------------------------------------------------------------------
 
     @classmethod
     def from_yaml_dict(cls, data: Mapping[str, Any] | None) -> NoteMetadata:
         """
         Construit un NoteMetadata à partir d'un dict YAML.
 
-        - Tolère data == None ou data non-mapping (ex: str) -> renvoie des valeurs par défaut.
+        - Tolère data == None ou data non-mapping.
         - Normalise 'subcategory' / 'sub category'.
         - Normalise 'tags' (liste attendue ; si str CSV, split).
         """
+
         if not isinstance(data, Mapping):
-            # data peut être None, str, etc. On sécurise.
             return cls()
 
         def _as_str(x: Any, default: str = "") -> str:
             return default if x is None else str(x)
 
-        # subcategory: alias
+        # subcategory alias
         subcat = data.get("subcategory", data.get("sub category", ""))
 
-        # tags: accepter list[str] ou str "tag1, tag2"
+        # tags normalisation
         raw_tags = data.get("tags", [])
         if isinstance(raw_tags, str):
             tags = [t.strip() for t in raw_tags.split(",") if t.strip()]
@@ -49,6 +87,10 @@ class NoteMetadata:
             tags = [str(t).strip() for t in raw_tags if str(t).strip()]
         else:
             tags = []
+
+        # Nouveau : semantic doc type
+        doc_type_raw = _as_str(data.get("doc_type") or data.get("type"))
+        doc_type = DocumentSemanticType.from_str(doc_type_raw)
 
         return cls(
             title=_as_str(data.get("title")),
@@ -62,6 +104,9 @@ class NoteMetadata:
             author=_as_str(data.get("author")),
             status=_as_str(data.get("status") or "draft"),
             project=_as_str(data.get("project")),
+            doc_type=doc_type,
+            provider=_as_str(data.get("provider")),
+            media_source=_as_str(data.get("media_source")),
         )
 
     @classmethod
@@ -69,6 +114,7 @@ class NoteMetadata:
         """
         Construit un objet à partir des champs DB.
         """
+
         return cls(
             title=str(data.get("title", "")),
             summary=str(data.get("summary", "")),
@@ -77,6 +123,9 @@ class NoteMetadata:
             project=str(data.get("project", "")),
             status=str(data.get("status", "draft")),
             created=str(data.get("created_at", "")) or None,
+            doc_type=DocumentSemanticType.from_str(str(data.get("doc_type", "")) if data.get("doc_type") else None),
+            provider=str(data.get("provider", "")),
+            media_source=str(data.get("media_source", "")),
         )
 
     @classmethod
@@ -84,15 +133,27 @@ class NoteMetadata:
         """
         Fusionne plusieurs objets Metadata : priorité à gauche.
         """
+
         result = cls()
+        print(f"result: {result}")
+
         for source in reversed(sources):
+            print(f"source: {source}")
             for field_name in result.__dataclass_fields__:
+                print(f"field_name: {field_name}")
                 val = getattr(source, field_name)
+                print(f"val: {val}")
                 if val:
                     setattr(result, field_name, val)
+        print("CLASS:", cls)
+        print("MODULE:", cls.__module__)
+        print("FIELDS:", result.__dataclass_fields__.keys())
+        print(f"result: {result}")
         return result
 
-    # ------------------------- Exporteurs -----------------------------------
+    # -----------------------------------------------------------------------
+    # Exporteurs
+    # -----------------------------------------------------------------------
 
     def to_yaml_dict(self) -> dict[str, str | list[str]]:
         return {
@@ -107,6 +168,10 @@ class NoteMetadata:
             "author": self.author,
             "status": self.status,
             "project": self.project,
+            # --- nouveaux champs ---
+            "doc_type": self.doc_type.value,
+            "provider": self.provider,
+            "media_source": self.media_source,
         }
 
     def to_dict(self) -> dict[str, str | list[str]]:

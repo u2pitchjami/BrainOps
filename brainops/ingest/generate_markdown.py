@@ -17,8 +17,8 @@ def generate_markdown_from_whisper(
     title: str,
     manifest: AudioManifest,
     audio_file: Path,
-    target_words: int = 500,
-    max_words: int = 650,
+    target_words: int = 100,
+    max_words: int = 150,
     logger: LoggerProtocol | None = None,
 ) -> None:
     logger = ensure_logger(logger, __name__)
@@ -72,10 +72,9 @@ def whisper_json_to_markdown(
             f"source_url: {source['url']}",
             f"show: {source['show']}",
             f"authors: {', '.join(manifest.get('authors', []))}",
-            f"audio_file: {audio_filename}",
+            f"audio_file: [[{audio_filename}]]",
             "---",
             "",
-            f"# {title}",
             "",
         ]
     )

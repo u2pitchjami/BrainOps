@@ -46,6 +46,8 @@ class Note:
     source_hash: str | None = None
     lang: str | None = None  # 3 lettres (ex: "fr", "en")
 
+    media_id: int | None = None
+
     # ---- transients (non stockés) ---------------------------------------------
     name: str = field(init=False, repr=False)  # basename dérivé de file_path
     ext: str = field(init=False, repr=False)  # extension dérivée
@@ -114,6 +116,7 @@ class Note:
             content_hash=d.get("content_hash"),
             source_hash=d.get("source_hash"),
             lang=d.get("lang"),
+            media_id=d.get("media_id"),
         )
 
     def to_upsert_params(self) -> tuple[Any, ...]:
@@ -138,4 +141,5 @@ class Note:
             self.content_hash,
             self.source_hash,
             self.lang,
+            self.media_id,
         )

@@ -62,9 +62,10 @@ def collect_diffs(cfg: CheckConfig, logger: LoggerProtocol | None = None) -> Dif
 
         Path(cfg.base_path)
         physical_dirs: set[Path] = set(_iter_physical_dirs(cfg.base_path, logger=logger))
-        # physical_dirs.add(BASE)
+        logger.debug("physical_dirs: %s", physical_dirs)
+        # physical_dirs.add(base_notes)
         db_folder_paths = {Path(row["path"]) for row in db_folders}
-
+        logger.debug("db_folder_paths: %s", db_folder_paths)
         folders_missing_in_db = sorted(str(p) for p in (physical_dirs - db_folder_paths))
         folders_ghost_in_db = sorted(str(p) for p in (db_folder_paths - physical_dirs))
         if "." in folders_ghost_in_db:
@@ -72,12 +73,30 @@ def collect_diffs(cfg: CheckConfig, logger: LoggerProtocol | None = None) -> Dif
         logger.debug("folders_ghost_in_db: %s", folders_ghost_in_db)
 
         for p in folders_missing_in_db:
-            if p == "." or p == "./" or p == "" or p == "/" or p == "\\" or p == "/app" or p == "/app/notes":
+            if (
+                p == "."
+                or p == "./"
+                or p == ""
+                or p == "/"
+                or p == "\\"
+                or p == "/app"
+                or p == "/app/notes"
+                or p == "/app/audio"
+            ):
                 continue
             logger.info("📁 + Dossier à ajouter (DB) : %s", p)
             errors_rows.append(("folder_missing_in_db", p))
         for p in folders_ghost_in_db:
-            if p == "." or p == "./" or p == "" or p == "/" or p == "\\" or p == "/app" or p == "/app/notes":
+            if (
+                p == "."
+                or p == "./"
+                or p == ""
+                or p == "/"
+                or p == "\\"
+                or p == "/app"
+                or p == "/app/notes"
+                or p == "/app/audio"
+            ):
                 continue
             logger.info("📁 - Dossier à supprimer (DB) : %s", p)
             errors_rows.append(("folder_ghost_in_db", p))
@@ -101,7 +120,7 @@ def collect_diffs(cfg: CheckConfig, logger: LoggerProtocol | None = None) -> Dif
                 errors_rows.append(("note_missing_file", str(fpath)))
                 logger.info("📝 - Note fantôme en DB (chemin non résolu) : %s", fpath)
 
-        all_md_files: set[Path] = set(_iter_md_files(cfg.base_path))
+        all_md_files: set[Path] = set(_iter_md_files(cfg.base_notes))
         db_note_paths = {Path(str(n["file_path"])) for n in notes_rows}
         db_note_paths_resolved = {p for p in db_note_paths if to_abs(p).exists()}
         notes_missing_in_db = sorted(str(p) for p in (all_md_files - db_note_paths_resolved))

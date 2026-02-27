@@ -6,10 +6,13 @@ from brainops.header.header_utils import hash_source
 from brainops.io.note_reader import read_note_full
 from brainops.io.utils import count_words
 from brainops.models.classification import ClassificationResult
+from brainops.models.media import Media
 from brainops.models.metadata import NoteMetadata
 from brainops.models.note import Note
 from brainops.process_import.utils.divers import hash_content, lang_detect
 from brainops.sql.get_linked.db_get_linked_folders_utils import get_category_context_from_folder
+from brainops.sql.notes.db_medias import get_media_by_id
+from brainops.sql.notes.db_update_medias import _ALLOWED_COLUMNS_MEDIAS
 from brainops.sql.notes.db_update_notes import _ALLOWED_COLUMNS
 from brainops.utils.logger import LoggerProtocol, ensure_logger
 from brainops.utils.normalization import sanitize_created, sanitize_yaml_title
@@ -23,6 +26,7 @@ class NoteContext:
     base_fp: str | None = None
     note_classification: ClassificationResult | None = None
     note_metadata: NoteMetadata | None = None
+    media: Media | None = None
     note_content: str | None = None
     note_wc: int = 0
     logger: LoggerProtocol | None = None
@@ -43,6 +47,9 @@ class NoteContext:
 
         if not self.note_classification:
             self.note_classification = get_category_context_from_folder(folder_path=self.base_fp, logger=self.logger)
+
+        if self.note_db.media_id:
+            self.media = get_media_by_id(self.note_db.media_id)
 
     def sync_with_db(self) -> dict[str, Any]:
         """
@@ -77,6 +84,18 @@ class NoteContext:
 
             if self.note_metadata.project != self.note_db.project:
                 changes["project"] = self.note_metadata.project
+
+            if self.note_db.media_id:
+                if self.media:
+                    print(f"media: {self.media}")
+                    if self.note_metadata.doc_type != self.media.semantic_type:
+                        changes["doc_type"] = self.note_metadata.doc_type
+
+                    if self.note_metadata.provider != self.media.provider:
+                        changes["provider"] = self.note_metadata.provider
+
+                    if self.note_metadata.media_source != self.media.storage_path:
+                        changes["storage_path"] = self.note_metadata.media_source
 
             created = sanitize_created(self.note_metadata.created, logger=self.logger)
             if created != self.note_db.created_at:
@@ -113,7 +132,7 @@ class NoteContext:
                 changes["lang"] = lang
 
         # ---- Filtrage final
-        filtered = {k: v for k, v in changes.items() if k in _ALLOWED_COLUMNS}
+        filtered = {k: v for k, v in changes.items() if k in _ALLOWED_COLUMNS or k in _ALLOWED_COLUMNS_MEDIAS}
         if filtered != changes:
             if self.logger is not None:
                 self.logger.debug("Champs ignorés car non autorisés: %s", set(changes) - set(filtered))
@@ -135,6 +154,9 @@ class NoteContext:
         if self.logger is not None:
             self.logger.info("Note ID=%s : changements détectés :", self.note_db.id)
         for field, new_val in diffs.items():
-            old_val = getattr(self.note_db, field, None)
+            if field in _ALLOWED_COLUMNS_MEDIAS:
+                old_val = getattr(self.media, field, None)
+            else:
+                old_val = getattr(self.note_db, field, None)
             if self.logger is not None:
                 self.logger.info(" - %s: %r → %r", field, old_val, new_val)

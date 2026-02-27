@@ -12,6 +12,7 @@ class Severity(str, Enum):
 @dataclass(frozen=True)
 class CheckConfig:
     base_path: Path
+    base_notes: Path
     out_dir: Path
 
 

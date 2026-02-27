@@ -10,7 +10,7 @@ from queue import Queue
 
 from brainops.ingest.audio_pipeline import process_audio_manifests
 from brainops.io.paths import exists
-from brainops.models.event import DirEvent, Event
+from brainops.models.event import DirEvent, Event, QueuedNoteContext
 from brainops.models.exceptions import BrainOpsError
 from brainops.models.note import Note
 from brainops.models.note_context import NoteContext
@@ -31,8 +31,18 @@ logger = get_logger("Brainops Watcher")
 # ---- Typage des événements -----------------------------------------------------
 
 # File d’attente unique et lock manager
-event_queue: Queue[Event] = Queue()
+event_queue: Queue[QueuedNoteContext] = Queue()
 lock_mgr = PendingNoteLockManager()
+
+
+def replay_enqueue(qnc: QueuedNoteContext) -> None:
+    """
+    Release lock and re-enqueue event.
+    """
+    if qnc.lock_key is not None:
+        lock_mgr.release(qnc.lock_key)
+
+    enqueue_event(qnc.event)
 
 
 def enqueue_event(event: Event) -> None:
@@ -42,11 +52,13 @@ def enqueue_event(event: Event) -> None:
     - Pour les fichiers, pose un lock logique (note_id ou path).
     - Si le lock existe déjà, l'événement est ignoré (dé-bounce de travail).
     """
+    note_db: Note | None = None
+    key: str | None = None
     if event["type"] == "file":
         file_path: str = event["path"]  # always present (TypedDict total)
         src_path: str | None = event.get("src_path")
 
-        note_db: Note | None = get_note_by_path(file_path, src_path, logger=logger)
+        note_db = get_note_by_path(file_path, src_path, logger=logger)
         event["Note"] = note_db
         note = event.get("Note")
         logger.debug("[QUEUE] Enfile : %s", note)
@@ -61,7 +73,13 @@ def enqueue_event(event: Event) -> None:
             logger.debug("[QUEUE] 🚫 Ignoré, déjà en file : %s", key)
             return
 
-    event_queue.put(event)
+    queued_ctx = QueuedNoteContext(
+        note=note_db,
+        event=event,
+        lock_key=key,
+    )
+
+    event_queue.put(queued_ctx)
     logger.debug("[QUEUE] Taille actuelle: %d", event_queue.qsize())
     log_event_queue()
 
@@ -75,13 +93,15 @@ def process_queue() -> None:
     """
     log_event_queue()
     while True:
+        queued_ctx: QueuedNoteContext | None = None
         event: Event | None = None
         file_path: str | None = None
         src_path: str | None = None
         locked: bool = False
 
         try:
-            event = event_queue.get()
+            queued_ctx = event_queue.get()
+            event = queued_ctx.event
             trigger_new = False
             logger.debug("[DEBUG] ===== PROCESS QUEUE EVENT RECUP : %s", event)
             file_path = event["path"]
@@ -119,6 +139,13 @@ def process_queue() -> None:
 
                     logger.info("[INFO] Note créée : (id=%s) %s", note_id, file_path)
                 if note_id:
+                    if action == "deleted":
+                        deleted = delete_note_by_path(file_path, logger=logger)
+                        if deleted:
+                            logger.info("[SUPPR] ✅ Note Supprimée: (id=%s) %s", note_id, file_path)
+                        else:
+                            logger.warning("[SUPPR] ❌ Rien à supprimer pour: %s", file_path)
+
                     if not note_db:
                         note_db = get_note_by_id(note_id, logger=logger)
                         if not note_db:
@@ -150,20 +177,13 @@ def process_queue() -> None:
                             logger.warning("[DUP] ❌ Note Dupliquée: (id=%s) %s", note_id, file_path)
                             continue
 
-                    if action == "deleted":
-                        deleted = delete_note_by_path(file_path, logger=logger)
-                        if deleted:
-                            logger.info("[SUPPR] ✅ Note Supprimée: (id=%s) %s", note_id, file_path)
-                        else:
-                            logger.warning("[SUPPR] ❌ Rien à supprimer pour: %s", file_path)
-
                     # created / modified / moved
                     if action in ("created", "modified"):
-                        process_single_note(ctx, logger=logger)
+                        process_single_note(ctx, queued_ctx, logger=logger)
 
                     if action == "moved":
                         logger.debug("[BUSY] Déplacement fichier : %s -> %s", src_path, file_path)
-                        process_single_note(ctx, logger=logger)
+                        process_single_note(ctx, queued_ctx, logger=logger)
 
             # Dossiers: déléguer au gestionnaire de dossiers
             if etype == "directory":

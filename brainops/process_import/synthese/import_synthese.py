@@ -31,6 +31,7 @@ def process_import_syntheses(
     meta_final: NoteMetadata,
     classification: ClassificationResult,
     *,
+    media_id: int | None = None,
     regen: bool = False,
     remake_header: bool = False,
     logger: LoggerProtocol | None = None,
@@ -49,7 +50,14 @@ def process_import_syntheses(
     try:
         logger.info("[SYNTH] Démarage Embeddings pour : (id=%s)", note_id)
 
-        final_response = make_embeddings_synthesis(note_id, content=content, logger=logger)
+        final_response = make_embeddings_synthesis(
+            note_id,
+            content=content,
+            source_note=meta_final.doc_type,
+            max_chars=3800,
+            max_tokens=500,
+            logger=logger,
+        )
 
         if not final_response:
             logger.error("[ERROR] ❌ final_response None: abandon synthèse.")
@@ -104,6 +112,7 @@ def process_import_syntheses(
                     category=classification.category_name,
                     subcategory=classification.subcategory_name or "",
                     last_modified=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    doc_type=meta_final.doc_type,
                 ),
                 meta_final,  # puis l’existant
             )
@@ -121,6 +130,7 @@ def process_import_syntheses(
             join_synthesis = new_synthesis(
                 final_synth_body_content=final_synth_body_content,
                 note_id=note_id,
+                media_id=media_id,
                 synthesis_path=synthesis_path,
                 meta_synth_final=meta_synth_final,
                 classification=classification,
