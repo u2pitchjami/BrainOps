@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "brainops"
-version = "0.1.0"
+version = "2.0.1"
 description = "brainops"
-requires-python = ">=3.11"  # cohérent avec mypy/ruff
+requires-python = ">=3.12"  # cohérent avec mypy/ruff
 
 [tool.setuptools]
 # plus robuste que lister les packages à la main
@@ -17,11 +17,11 @@ exclude = ["tests*", "z_old*", "docker*"]
 
 # --- Pylint (si tu le gardes ponctuellement, pas en pre-commit) -------------
 [tool.pylint.MASTER]
-ignore = ["z_old", "docker"]
+ignore = ["tests*", "z_old*", "docker*"]
 
 # --- Mypy -------------------------------------------------------------------
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 pretty = true
 show_error_codes = true
 ignore_missing_imports = false

@@ -57,4 +57,5 @@ pytest.ini
 .ruff*/
 *.egg-info/
 Makefile
+.venv/
 
