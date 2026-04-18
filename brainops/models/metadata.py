@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -11,7 +11,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 
-class DocumentSemanticType(str, Enum):
+class DocumentSemanticType(StrEnum):
     ARTICLE = "article"
     PODCAST = "podcast"
     INTERVIEW = "interview"

@@ -1,6 +1,6 @@
 PYTHON ?= python3
 PIP    ?= $(PYTHON) -m pip
-PKG    ?= src
+PKG    ?= .
 
 .PHONY: init fmt check types qa clean patch compile help
 
@@ -29,7 +29,7 @@ types:
 	mypy $(PKG)
 
 vulture:
-	vulture $(PKG) --min-confidence 80
+	vulture $(PKG)/brainops --min-confidence 80
 
 qa: fmt types vulture
 
