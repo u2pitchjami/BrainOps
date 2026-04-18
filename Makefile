@@ -6,6 +6,10 @@ PKG    ?= src
 
 init:
 	./dev_scripts/rebuild_env.sh
+	python -m pre_commit install
+
+hooks:
+	python -m pre_commit install
 
 patch:
 	./dev_scripts/patch.sh
