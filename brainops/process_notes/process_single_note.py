@@ -13,7 +13,6 @@ from brainops.models.event import QueuedNoteContext
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.note_context import NoteContext
 from brainops.process_import.normal.import_normal import import_normal
-from brainops.process_import.utils.gpu_guard import guard_gpu_or_requeue
 from brainops.process_import.utils.paths import path_is_inside
 from brainops.process_notes.update_note import (
     sync_classification_to_metadata,
@@ -103,9 +102,9 @@ def handle_move_uncategorized_to_storage(
                 code=ErrCode.CONTEXT,
                 ctx={"step": "handle_move_uncategorized_to_storage"},
             )
-        ready = guard_gpu_or_requeue(queued_ctx)
-        if not ready:
-            return
+        # ready = guard_gpu_or_requeue(queued_ctx)
+        # if not ready:
+        # return
 
         importok = import_normal(ctx.file_path, ctx.note_db.id, ctx=ctx, force_categ=True)
         if not importok:
@@ -124,9 +123,9 @@ def handle_move_to_imports(ctx: NoteContext, queued_ctx: QueuedNoteContext, logg
                 ctx={"step": "handle_move_to_imports"},
             )
         logger.info("[MOVED] ✈️ (id=%s) → imports : Import", ctx.note_db.id)
-        ready = guard_gpu_or_requeue(queued_ctx)
-        if not ready:
-            return
+        # ready = guard_gpu_or_requeue(queued_ctx)
+        # if not ready:
+        # return
         importok = import_normal(ctx.file_path, ctx.note_db.id, ctx=ctx, force_categ=False)
         if not importok:
             logger.warning("[WARNING] ❌ (id=%s) : Echec Import", ctx.note_db.id)
@@ -200,9 +199,9 @@ def handle_created_in_imports(ctx: NoteContext, queued_ctx: QueuedNoteContext, l
             )
 
         logger.info("[CREATED] ✨ (id=%s) : Import", ctx.note_db.id)
-        ready = guard_gpu_or_requeue(queued_ctx)
-        if not ready:
-            return
+        # ready = guard_gpu_or_requeue(queued_ctx)
+        # if not ready:
+        # return
         importok = import_normal(ctx.file_path, ctx.note_db.id, ctx)
         if not importok:
             logger.warning("[WARNING] ❌ (id=%s) : Echec Import", ctx.note_db.id)

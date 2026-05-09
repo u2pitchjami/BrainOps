@@ -8,7 +8,6 @@ from brainops.io.move_error_file import handle_errored_file
 from brainops.models.event import QueuedNoteContext
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.note_context import NoteContext
-from brainops.process_import.utils.gpu_guard import guard_gpu_or_requeue
 from brainops.process_regen.header_utils import go_header
 from brainops.process_regen.synthesis_utils import go_synthesis
 from brainops.utils.logger import get_logger
@@ -27,9 +26,9 @@ def regen_hub(filepath: str, note_id: int, ctx: NoteContext, queued_ctx: QueuedN
 
     if trigger_header:
         try:
-            ready = guard_gpu_or_requeue(queued_ctx)
-            if not ready:
-                return False
+            # ready = guard_gpu_or_requeue(queued_ctx)
+            # if not ready:
+            # return False
             go_head = go_header(note_id, ctx, logger=logger)
             if go_head:
                 logger.info("[REGEN] ✅ (id=%s) : Regen Header Réussi", note_id)
@@ -48,9 +47,9 @@ def regen_hub(filepath: str, note_id: int, ctx: NoteContext, queued_ctx: QueuedN
 
     if trigger_synth:
         try:
-            ready = guard_gpu_or_requeue(queued_ctx)
-            if not ready:
-                return False
+            # ready = guard_gpu_or_requeue(queued_ctx)
+            # if not ready:
+            # return False
             go_synth = go_synthesis(note_id, filepath, ctx, logger=logger)
             if go_synth:
                 logger.info("[REGEN] ✅ (id=%s) : Regen Synthèse Réussi", note_id)
