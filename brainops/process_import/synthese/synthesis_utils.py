@@ -120,25 +120,28 @@ def make_glossary(content: str, note_id: int, logger: LoggerProtocol | None = No
 @with_child_logger
 def make_syntheses(
     note_id: int,
+    content: str,
     original_path: str,
     translate_synth: str | None = None,
     glossary: str | None = None,
     questions: str | None = None,
-    content_lines: str | None = None,
+    synth_lines: str | None = None,
     logger: LoggerProtocol | None = None,
 ) -> str:
     """
     Construit le contenu final de la synthèse et l’écrit dans le fichier.
 
-    - content_lines peut être fournis ; sinon on relit le fichier.
+    - synthesis_lines peut être fournis ; sinon on relit le fichier.
     """
     logger = ensure_logger(logger, __name__)
     try:
         # Fallbacks propres
-        content_lines = (content_lines or "").strip()
+        content_lines = (content or "").strip()
+        synthesis_lines = (synth_lines or "").strip()
 
-        # Lien vers la note originale
-        original_link = f"[[{original_path}|Voir la note originale]]"
+        # titres
+        synth_title = "# SYNTHESE"
+        original_title = "# ORIGINAL"
 
         # Blocs optionnels
         # translate_block = format_optional_block("Traduction française", translate_synth)
@@ -146,14 +149,46 @@ def make_syntheses(
         questions_block = format_optional_block("Questions", questions)
 
         # Assemblage
-        blocks = [original_link, "", content_lines]
+        blocks = [
+            "",
+            synth_title,
+            "",
+            "<!-- BRAINOPS_SUMMARY_START -->",
+            synthesis_lines,
+            "<!-- BRAINOPS_SUMMARY_END -->",
+        ]
         # Séparateurs facultatifs
         # if translate_block:
         # blocks += ["", "---", "", translate_block]
         if glossary_block:
-            blocks += ["", "---", "", glossary_block]
+            blocks += [
+                "",
+                "---",
+                "<!-- BRAINOPS_GLOSSARY_START -->",
+                "",
+                glossary_block,
+                "<!-- BRAINOPS_GLOSSARY_END -->",
+            ]
         if questions_block:
-            blocks += ["", "---", "", questions_block]
+            blocks += [
+                "",
+                "---",
+                "<!-- BRAINOPS_QUESTIONS_START -->",
+                "",
+                questions_block,
+                "<!-- BRAINOPS_QUESTIONS_END -->",
+            ]
+
+        blocks += [
+            "",
+            "---",
+            "<!-- BRAINOPS_ORIGINAL_START -->",
+            "",
+            original_title,
+            "",
+            content_lines,
+            "<!-- BRAINOPS_ORIGINAL_END -->",
+        ]
 
         body_content = "\n".join(blocks).strip()
         final_synth_body_content = clean_fake_code_blocks(body_content)

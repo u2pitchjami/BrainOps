@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from brainops.header.header_utils import hash_source
+from brainops.io.extract_section import BrainopsSection, extract_brainops_section
 from brainops.io.note_reader import read_note_full
 from brainops.io.utils import count_words
 from brainops.models.classification import ClassificationResult
@@ -28,6 +29,10 @@ class NoteContext:
     note_metadata: NoteMetadata | None = None
     media: Media | None = None
     note_content: str | None = None
+    brainops_summary: str | None = None
+    brainops_questions: str | None = None
+    brainops_glossary: str | None = None
+    brainops_original: str | None = None
     note_wc: int = 0
     logger: LoggerProtocol | None = None
 
@@ -41,6 +46,22 @@ class NoteContext:
                 self.note_metadata = metadata
             if not self.note_content:
                 self.note_content = content
+                self.brainops_summary = extract_brainops_section(
+                    self.note_content,
+                    BrainopsSection.SUMMARY,
+                )
+                self.brainops_questions = extract_brainops_section(
+                    self.note_content,
+                    BrainopsSection.QUESTIONS,
+                )
+                self.brainops_glossary = extract_brainops_section(
+                    self.note_content,
+                    BrainopsSection.GLOSSARY,
+                )
+                self.brainops_original = extract_brainops_section(
+                    self.note_content,
+                    BrainopsSection.ORIGINAL,
+                )
 
         if self.note_content and self.note_wc == 0:
             self.note_wc = count_words(self.note_content, logger=self.logger)

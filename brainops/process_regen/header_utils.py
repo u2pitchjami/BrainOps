@@ -27,13 +27,15 @@ def go_header(
     Génère l'en-tête de la note.
     """
     logger = ensure_logger(logger, __name__)
+    logger.info("[REGEN] ✨ (id=%s) : Lancement Regen Header", note_id)
+    logger.debug("[DEBUG] +++ ▶️ REGEN HEADER pour %s", note_id)
     if (
         not ctx
         or not ctx.note_db.status
-        or not ctx.note_db.parent_id
         or not ctx.note_metadata
         or not ctx.note_classification
         or not ctx.note_content
+        or not ctx.brainops_original
         or not ctx.file_path
     ):
         raise BrainOpsError(
@@ -46,10 +48,11 @@ def go_header(
     classification = ctx.note_classification
     db_status = str(ctx.note_db.status)
     content = ctx.note_content
+    original_content = ctx.brainops_original
 
     logger.info("[REGEN] ✨ (id=%s) : Lancement Regen Header", note_id)
     try:
-        header = regen_header(note_id, content, meta_yaml, classification, db_status)
+        header = regen_header(note_id, original_content, meta_yaml, classification, db_status)
         if not header:
             logger.warning(
                 "[REGEN] 🚨 (id=%s) : Échec de la régénération de l'en-tête",

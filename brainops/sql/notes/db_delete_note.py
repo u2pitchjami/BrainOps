@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from brainops.io.paths import to_abs, to_rel
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.sql.db_connection import get_db_connection, get_dict_cursor
 from brainops.sql.db_utils import safe_execute_dict
@@ -48,39 +47,39 @@ def delete_note_by_path(file_path: str, *, logger: LoggerProtocol | None = None)
             safe_execute_dict(cur, "DELETE FROM obsidian_tags WHERE note_id = %s", (note_id,))
             logger.info("🏷️ Tags supprimés pour note %s", note_id)
 
-            # 4) Cas status
-            if status == "synthesis" and parent_id:
-                # 4a) Récupérer le chemin de l’archive liée
-                safe_execute_dict(
-                    cur,
-                    "SELECT file_path FROM obsidian_notes WHERE id = %s",
-                    (parent_id,),
-                )
-                prow = cur.fetchone()
+            # # 4) Cas status
+            # if status == "synthesis" and parent_id:
+            #     # 4a) Récupérer le chemin de l’archive liée
+            #     safe_execute_dict(
+            #         cur,
+            #         "SELECT file_path FROM obsidian_notes WHERE id = %s",
+            #         (parent_id,),
+            #     )
+            #     prow = cur.fetchone()
 
-                if prow and prow.get("file_path"):
-                    parent_file_rel: str = to_rel(prow["file_path"])
-                    p = to_abs(parent_file_rel)
-                    try:
-                        if p.is_file():
-                            p.unlink()
-                            logger.info("🗑️ Fichier archive supprimé: %s", parent_file_rel)
-                        else:
-                            logger.warning("⚠️ Fichier archive introuvable: %s", parent_file_rel)
-                    except Exception as exc:  # pylint: disable=broad-except
-                        logger.warning(
-                            "⚠️ Échec suppression fichier archive %s: %s", parent_file_rel, exc, exc_info=True
-                        )
+            #     if prow and prow.get("file_path"):
+            #         parent_file_rel: str = to_rel(prow["file_path"])
+            #         p = to_abs(parent_file_rel)
+            #         try:
+            #             if p.is_file():
+            #                 p.unlink()
+            #                 logger.info("🗑️ Fichier archive supprimé: %s", parent_file_rel)
+            #             else:
+            #                 logger.warning("⚠️ Fichier archive introuvable: %s", parent_file_rel)
+            #         except Exception as exc:  # pylint: disable=broad-except
+            #             logger.warning(
+            #                 "⚠️ Échec suppression fichier archive %s: %s", parent_file_rel, exc, exc_info=True
+            #             )
 
-                # 4b) Supprimer l’archive + ses tags
-                safe_execute_dict(cur, "DELETE FROM obsidian_notes WHERE id = %s", (parent_id,))
-                safe_execute_dict(cur, "DELETE FROM obsidian_tags WHERE note_id = %s", (parent_id,))
-                logger.info("🧹 Archive %s et ses tags supprimés", parent_id)
+            #     # 4b) Supprimer l’archive + ses tags
+            #     safe_execute_dict(cur, "DELETE FROM obsidian_notes WHERE id = %s", (parent_id,))
+            #     safe_execute_dict(cur, "DELETE FROM obsidian_tags WHERE note_id = %s", (parent_id,))
+            #     logger.info("🧹 Archive %s et ses tags supprimés", parent_id)
 
-            elif status == "archive" and parent_id:
-                # Dissocier la synthesis
-                safe_execute_dict(cur, "UPDATE obsidian_notes SET parent_id = NULL WHERE id = %s", (parent_id,))
-                logger.info("🔄 Synthesis %s dissociée de son archive", parent_id)
+            # elif status == "archive" and parent_id:
+            #     # Dissocier la synthesis
+            #     safe_execute_dict(cur, "UPDATE obsidian_notes SET parent_id = NULL WHERE id = %s", (parent_id,))
+            #     logger.info("🔄 Synthesis %s dissociée de son archive", parent_id)
 
             # 5) Supprimer la note elle-même
             safe_execute_dict(cur, "DELETE FROM obsidian_notes WHERE id = %s", (note_id,))

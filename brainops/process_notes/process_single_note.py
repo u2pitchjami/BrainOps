@@ -7,7 +7,6 @@ from __future__ import annotations
 import os
 
 from brainops.io.move_error_file import handle_errored_file
-from brainops.io.note_writer import write_metadata_to_note
 from brainops.io.paths import to_abs
 from brainops.models.event import QueuedNoteContext
 from brainops.models.exceptions import BrainOpsError, ErrCode
@@ -20,7 +19,6 @@ from brainops.process_notes.update_note import (
 )
 from brainops.process_notes.utils import check_if_tags
 from brainops.process_regen.regen_hub import regen_hub
-from brainops.sql.notes.db_notes_utils import check_synthesis_and_trigger_archive, get_note_by_id
 from brainops.utils.config import IMPORTS_PATH, UNCATEGORIZED_PATH, Z_STORAGE_PATH
 from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
 
@@ -155,8 +153,8 @@ def handle_move_within_storage(ctx: NoteContext, logger: LoggerProtocol) -> None
         logger.info("[METADATA] ✈️ (id=%s) : Entête mise à jour", ctx.note_db.id)
 
     update_note_context(ctx)
-    if ctx.note_db.status == "synthesis":
-        check_synthesis_and_trigger_archive(ctx.note_db.id, ctx.file_path, ctx, logger=logger)
+    # if ctx.note_db.status == "synthesis":
+    #    check_synthesis_and_trigger_archive(ctx.note_db.id, ctx.file_path, ctx, logger=logger)
 
 
 # ========================================================
@@ -182,8 +180,8 @@ def handle_create_or_modify(ctx: NoteContext, queued_ctx: QueuedNoteContext, log
     if ctx.note_db.status == "synthesis":
         if not ctx.note_db.id:
             logger.warning("🚨 (id=%s) Note sans ID", ctx.note_db.id)
-        else:
-            check_synthesis_and_trigger_archive(ctx.note_db.id, filepath, ctx, logger=logger)
+        # else:
+        # check_synthesis_and_trigger_archive(ctx.note_db.id, filepath, ctx, logger=logger)
 
 
 def handle_created_in_imports(ctx: NoteContext, queued_ctx: QueuedNoteContext, logger: LoggerProtocol) -> None:
@@ -224,30 +222,30 @@ def handle_updated_in_storage(ctx: NoteContext, queued_ctx: QueuedNoteContext, l
         logger.info("[UPDATED] ✨ (id=%s) : Régénération", ctx.note_db.id)
         return
     update_note_context(ctx)
-    if ctx.note_db.parent_id and ctx.note_db.status == "synthesis":
-        note_parent = get_note_by_id(ctx.note_db.parent_id, logger=logger)
-        if note_parent and note_parent.id:
-            ctx_parent = NoteContext(note_parent, file_path=note_parent.file_path, src_path=None, logger=logger)
-        if ctx_parent.note_metadata and ctx.note_metadata:
-            ctx_parent.note_metadata.title = ctx.note_metadata.title
-            ctx_parent.note_metadata.source = ctx.note_metadata.source
-            ctx_parent.note_metadata.project = ctx.note_metadata.project
-            ctx_parent.note_metadata.author = ctx.note_metadata.author
-            if ctx.note_db.media_id and ctx_parent.note_db.media_id:
-                ctx_parent.note_db.media_id = ctx.note_db.media_id
-                ctx_parent.note_metadata.doc_type = ctx.note_metadata.doc_type
-                ctx_parent.note_metadata.provider = ctx.note_metadata.provider
-                ctx_parent.note_metadata.media_source = ctx.note_metadata.media_source
-        if ctx_parent.note_classification and ctx.note_classification:
-            ctx_parent.note_classification.category_id = ctx.note_classification.category_id
-            ctx_parent.note_classification.subcategory_id = ctx.note_classification.subcategory_id
-        if ctx_parent.note_content and ctx_parent.note_metadata:
-            write_metadata_to_note(
-                filepath=ctx_parent.note_db.file_path,
-                content=ctx_parent.note_content,
-                metadata=ctx_parent.note_metadata,
-                logger=logger,
-            )
+    # if ctx.note_db.parent_id and ctx.note_db.status == "synthesis":
+    #     note_parent = get_note_by_id(ctx.note_db.parent_id, logger=logger)
+    #     if note_parent and note_parent.id:
+    #         ctx_parent = NoteContext(note_parent, file_path=note_parent.file_path, src_path=None, logger=logger)
+    #     if ctx_parent.note_metadata and ctx.note_metadata:
+    #         ctx_parent.note_metadata.title = ctx.note_metadata.title
+    #         ctx_parent.note_metadata.source = ctx.note_metadata.source
+    #         ctx_parent.note_metadata.project = ctx.note_metadata.project
+    #         ctx_parent.note_metadata.author = ctx.note_metadata.author
+    #         if ctx.note_db.media_id and ctx_parent.note_db.media_id:
+    #             ctx_parent.note_db.media_id = ctx.note_db.media_id
+    #             ctx_parent.note_metadata.doc_type = ctx.note_metadata.doc_type
+    #             ctx_parent.note_metadata.provider = ctx.note_metadata.provider
+    #             ctx_parent.note_metadata.media_source = ctx.note_metadata.media_source
+    #     if ctx_parent.note_classification and ctx.note_classification:
+    #         ctx_parent.note_classification.category_id = ctx.note_classification.category_id
+    #         ctx_parent.note_classification.subcategory_id = ctx.note_classification.subcategory_id
+    #     if ctx_parent.note_content and ctx_parent.note_metadata:
+    #         write_metadata_to_note(
+    #             filepath=ctx_parent.note_db.file_path,
+    #             content=ctx_parent.note_content,
+    #             metadata=ctx_parent.note_metadata,
+    #             logger=logger,
+    #         )
 
 
 # ========================================================

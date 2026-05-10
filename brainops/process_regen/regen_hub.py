@@ -96,7 +96,7 @@ def should_trigger_process(
     actual_wc = ctx.note_db.word_count
     new_word_count: int = ctx.note_wc
     try:
-        if not ctx.note_db.status or not ctx.note_db.parent_id or not ctx.note_metadata:
+        if not ctx.note_db.status or not ctx.note_metadata:
             raise BrainOpsError(
                 "Données de context KO",
                 code=ErrCode.CONTEXT,
@@ -107,7 +107,7 @@ def should_trigger_process(
 
         word_diff = abs((actual_wc or 0) - new_word_count)
         trigger_wc = word_diff > threshold
-        if metadata_status == "archive" and trigger_wc:
+        if trigger_wc:
             trigger_header = True
             trigger_synth = True
         if metadata_status == "regen_header":

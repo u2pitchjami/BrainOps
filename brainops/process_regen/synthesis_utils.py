@@ -12,8 +12,6 @@ from brainops.models.metadata import NoteMetadata
 from brainops.models.note_context import NoteContext
 from brainops.ollama.check_ollama import check_ollama_health
 from brainops.process_import.synthese.import_synthese import process_import_syntheses
-from brainops.sql.get_linked.db_get_linked_notes_utils import get_file_path
-from brainops.sql.notes.db_notes_utils import get_note_by_id
 from brainops.sql.temp_blocs.db_delete_temp_blocs import delete_blocs_by_path_and_source
 from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
 
@@ -22,7 +20,6 @@ from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logg
 def regen_synthese_from_archive(
     note_id: int,
     content: str,
-    archive_path: str,
     synthesis_path: str,
     meta_final: NoteMetadata,
     classification: ClassificationResult,
@@ -56,7 +53,6 @@ def regen_synthese_from_archive(
             content=content,
             note_id=note_id,
             media_id=media_id,
-            archive_path=Path(archive_path),
             synthesis_path=Path(synthesis_path),
             meta_final=meta_final,
             classification=classification,
@@ -91,8 +87,8 @@ def go_synthesis(
     if (
         not ctx
         or not ctx.note_db.status
-        or not ctx.note_db.parent_id
         or not ctx.note_content
+        or not ctx.brainops_original
         or not ctx.note_metadata
         or not ctx.note_classification
     ):
@@ -103,47 +99,46 @@ def go_synthesis(
         )
 
     try:
-        if str(ctx.note_db.status) == "synthesis":
-            note_db_parent = get_note_by_id(ctx.note_db.parent_id, logger=logger)
-            if not note_db_parent:
-                raise BrainOpsError(
-                    "[REGEN] ❌ Données context KO Regen annulé",
-                    code=ErrCode.CONTEXT,
-                    ctx={"step": "go_header", "note_id": note_id},
-                )
-                return False
+        # if str(ctx.note_db.status) == "synthesis":
+        #     note_db_parent = get_note_by_id(ctx.note_db.parent_id, logger=logger)
+        #     if not note_db_parent:
+        #         raise BrainOpsError(
+        #             "[REGEN] ❌ Données context KO Regen annulé",
+        #             code=ErrCode.CONTEXT,
+        #             ctx={"step": "go_header", "note_id": note_id},
+        #         )
+        #         return False
 
-            ctx_parent = NoteContext(
-                note_db=note_db_parent, file_path=note_db_parent.file_path, src_path=None, logger=logger
-            )
-            if (
-                not ctx_parent
-                or not ctx_parent.note_db.id
-                or not ctx_parent.note_db.status
-                or not ctx_parent.note_db.parent_id
-                or not ctx_parent.note_metadata
-                or not ctx_parent.note_classification
-                or not ctx_parent.note_content
-            ):
-                raise BrainOpsError(
-                    "[REGEN] ❌ Données context KO Regen annulé",
-                    code=ErrCode.CONTEXT,
-                    ctx={"step": "go_header", "note_id": note_id},
-                )
-                return False
+        #     ctx_parent = NoteContext(
+        #         note_db=note_db_parent, file_path=note_db_parent.file_path, src_path=None, logger=logger
+        #     )
+        #     if (
+        #         not ctx_parent
+        #         or not ctx_parent.note_db.id
+        #         or not ctx_parent.note_db.status
+        #         or not ctx_parent.note_db.parent_id
+        #         or not ctx_parent.note_metadata
+        #         or not ctx_parent.note_classification
+        #         or not ctx_parent.note_content
+        #     ):
+        #         raise BrainOpsError(
+        #             "[REGEN] ❌ Données context KO Regen annulé",
+        #             code=ErrCode.CONTEXT,
+        #             ctx={"step": "go_header", "note_id": note_id},
+        #         )
+        #         return False
 
-        else:
-            synthesis_path = get_file_path(note_id=ctx.note_db.parent_id, logger=logger)
+        # else:
+        #     synthesis_path = get_file_path(note_id=ctx.note_db.parent_id, logger=logger)
 
-        logger.info("[MODIFIED] ✨ (id=%s) : Lancement Regen Synthesis", ctx_parent.note_db.id or note_id)
+        logger.info("[MODIFIED] ✨ (id=%s) : Lancement Regen Synthesis", note_id)
         synthesis = regen_synthese_from_archive(
-            note_id=note_id if ctx.note_db.status == "synthesis" else ctx.note_db.parent_id,
-            media_id=ctx_parent.note_db.media_id or ctx.note_db.media_id,
-            content=ctx_parent.note_content or ctx.note_content,
-            archive_path=ctx_parent.file_path or filepath,
-            synthesis_path=filepath if str(ctx.note_db.status) == "synthesis" else synthesis_path,
-            meta_final=ctx_parent.note_metadata or ctx.note_metadata,
-            classification=ctx_parent.note_classification or ctx.note_classification,
+            note_id=note_id,
+            media_id=ctx.note_db.media_id,
+            content=ctx.brainops_original,
+            synthesis_path=filepath,
+            meta_final=ctx.note_metadata,
+            classification=ctx.note_classification,
             logger=logger,
         )
         if not synthesis:

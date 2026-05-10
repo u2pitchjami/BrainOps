@@ -9,7 +9,6 @@ from pathlib import Path
 
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.folder_context import FolderContext
-from brainops.models.folders import FolderType
 from brainops.process_folders.detect_folder_type import detect_folder_type
 from brainops.process_import.utils.paths import path_is_inside
 from brainops.sql.categs.db_create_categ import (
@@ -68,10 +67,10 @@ def add_folder_context(path: str | Path, logger: LoggerProtocol | None = None) -
             elif len(parts) == 4:
                 category, subcategory = parts[2], parts[3]
                 logger.debug("[DEBUG] part=4 add_folder_context category (%s) sub %s", category, subcategory)
-            elif len(parts) == 5 and parts[4].lower() == "archives":
-                category, subcategory = parts[2], parts[3]
-                logger.debug("[DEBUG] part=4 add_folder_context category (%s) sub %s", category, subcategory)
-                ftype = FolderType.ARCHIVE
+            # elif len(parts) == 5 and parts[4].lower() == "archives":
+            #     category, subcategory = parts[2], parts[3]
+            #     logger.debug("[DEBUG] part=4 add_folder_context category (%s) sub %s", category, subcategory)
+            #     ftype = FolderType.ARCHIVE
         else:
             if len(parts) == 2:
                 category = parts[1]

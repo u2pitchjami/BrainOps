@@ -11,14 +11,13 @@ from brainops.header.headers import make_properties
 from brainops.models.classification import ClassificationResult
 from brainops.models.metadata import NoteMetadata
 from brainops.process_import.join.join_header_body import join_header_body
-from brainops.process_import.synthese.add_or_update import new_synthesis, update_synthesis
+from brainops.process_import.synthese.add_or_update import update_synthesis
 from brainops.process_import.synthese.embeddings import make_embeddings_synthesis
 from brainops.process_import.synthese.synthesis_utils import (
     make_glossary,
     make_questions,
     make_syntheses,
 )
-from brainops.process_import.utils.divers import make_relative_link
 from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
 
 
@@ -26,7 +25,6 @@ from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logg
 def process_import_syntheses(
     content: str,
     note_id: int,
-    archive_path: Path,
     synthesis_path: Path,
     meta_final: NoteMetadata,
     classification: ClassificationResult,
@@ -64,11 +62,11 @@ def process_import_syntheses(
             return False
         logger.info("[SYNTH] 👌 Embeddings OK : (id=%s)", note_id)
 
-        original_path = make_relative_link(archive_path, synthesis_path, logger=logger)
-        logger.debug("[DEBUG] original_path (relative link) : %s", original_path)
-        if not original_path:
-            logger.error("[ERROR] ❌ Lien synthèse - archive introuvable")
-        logger.info("[SYNTH] 👌 Lien Synthèse <--> Archive OK : (id=%s)", note_id)
+        # original_path = make_relative_link(archive_path, synthesis_path, logger=logger)
+        # logger.debug("[DEBUG] original_path (relative link) : %s", original_path)
+        # if not original_path:
+        #    logger.error("[ERROR] ❌ Lien synthèse - archive introuvable")
+        # logger.info("[SYNTH] 👌 Lien Synthèse <--> Archive OK : (id=%s)", note_id)
 
         logger.debug("[DEBUG] Génération du glossaire…")
         glossary = make_glossary(content, note_id, logger=logger)
@@ -95,11 +93,12 @@ def process_import_syntheses(
         logger.debug("[DEBUG] Assemblage du corps de la synthèse…")
         final_synth_body_content = make_syntheses(
             note_id=note_id,
-            original_path=str(original_path),
+            content=content,
+            original_path=str(synthesis_path),
             translate_synth=translate_synth,
             glossary=glossary,
             questions=questions,
-            content_lines=final_response,
+            synth_lines=final_response,
             logger=logger,
         )
         logger.debug("[DEBUG] Maj propriétés (status='synthesis')…")
@@ -126,25 +125,14 @@ def process_import_syntheses(
                 logger=logger,
             )
 
-        if not regen:
-            join_synthesis = new_synthesis(
-                final_synth_body_content=final_synth_body_content,
-                note_id=note_id,
-                media_id=media_id,
-                synthesis_path=synthesis_path,
-                meta_synth_final=meta_synth_final,
-                classification=classification,
-                logger=logger,
-            )
-        else:
-            join_synthesis = update_synthesis(
-                final_synth_body_content=final_synth_body_content,
-                note_id=note_id,
-                synthesis_path=synthesis_path,
-                meta_synth_final=meta_synth_final,
-                classification=classification,
-                logger=logger,
-            )
+        join_synthesis = update_synthesis(
+            final_synth_body_content=final_synth_body_content,
+            note_id=note_id,
+            synthesis_path=synthesis_path,
+            meta_synth_final=meta_synth_final,
+            classification=classification,
+            logger=logger,
+        )
         if not join_synthesis:
             logger.error(
                 "[ERREUR] 🚨 Problème lors de l'enregistrement en base (id=%s)",

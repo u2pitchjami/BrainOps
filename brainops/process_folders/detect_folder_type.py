@@ -12,8 +12,6 @@ def detect_folder_type(path: str) -> FolderType:
     Détection par règles simples sur le chemin complet (fallback) → Enum.
     """
     lower = path.lower()
-    if "/archives" in lower or lower.endswith("/archives"):
-        return FolderType.ARCHIVE
     if "z_storage/" in lower:
         return FolderType.STORAGE
     if "personnal/" in lower:
