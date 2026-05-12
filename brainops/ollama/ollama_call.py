@@ -10,11 +10,8 @@ from typing import Any
 import requests
 
 from brainops.models.exceptions import BrainOpsError, ErrCode
-from brainops.utils.config import (
-    OLLAMA_TIMEOUT,
-    OLLAMA_URL_EMBEDDINGS,
-    OLLAMA_URL_GENERATE,
-)
+from brainops.process_import.utils.gpu_guard import get_ollama_base_url
+from brainops.utils.config import OLLAMA_TIMEOUT
 from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
 
 
@@ -46,10 +43,13 @@ def call_ollama_with_retry(
 
     for attempt in range(retries):
         try:
+            base_url = get_ollama_base_url()
             if model_ollama == "nomic-embed-text:latest":
-                emb = get_embedding(prompt, model_ollama, logger=logger)
+                endpoint = f"{base_url}/api/embeddings"
+                emb = get_embedding(endpoint, prompt, model_ollama, logger=logger)
                 return json.dumps(emb)
-            return ollama_generate(prompt, model_ollama, logger=logger)
+            endpoint = f"{base_url}/api/generate"
+            return ollama_generate(endpoint, prompt, model_ollama, logger=logger)
         except OllamaError as exc:
             logger.warning("[WARNING] Tentative %d/%d échouée : %s", attempt + 1, retries, exc)
             if attempt < retries - 1:
@@ -64,14 +64,14 @@ def call_ollama_with_retry(
 
 
 @with_child_logger
-def ollama_generate(prompt: str, model_ollama: str, *, logger: LoggerProtocol | None = None) -> str:
+def ollama_generate(endpoint: str, prompt: str, model_ollama: str, *, logger: LoggerProtocol | None = None) -> str:
     """
     Appel texte → texte sur le endpoint GENERATE (stream).
 
     Concatène les fragments 'response' du flux JSONL.
     """
     logger = ensure_logger(logger, __name__)
-    logger.debug("[DEBUG] ollama_generate model=%s url=%s", model_ollama, OLLAMA_URL_GENERATE)
+    logger.debug("[DEBUG] ollama_generate model=%s url=%s", model_ollama, endpoint)
 
     payload: dict[str, Any] = {
         "model": model_ollama,
@@ -81,7 +81,7 @@ def ollama_generate(prompt: str, model_ollama: str, *, logger: LoggerProtocol | 
 
     try:
         with requests.post(
-            OLLAMA_URL_GENERATE,
+            endpoint,
             json=payload,
             stream=True,
             timeout=OLLAMA_TIMEOUT,
@@ -125,14 +125,16 @@ def ollama_generate(prompt: str, model_ollama: str, *, logger: LoggerProtocol | 
 
 
 @with_child_logger
-def get_embedding(prompt: str, model_ollama: str, *, logger: LoggerProtocol | None = None) -> list[float]:
+def get_embedding(
+    endpoint: str, prompt: str, model_ollama: str, *, logger: LoggerProtocol | None = None
+) -> list[float]:
     """
     Appel texte → embedding sur le endpoint EMBEDDINGS.
 
     Retourne la liste des floats, ou None en cas d'échec.
     """
     logger = ensure_logger(logger, __name__)
-    logger.debug("[DEBUG] get_embedding model=%s url=%s", model_ollama, OLLAMA_URL_EMBEDDINGS)
+    logger.debug("[DEBUG] get_embedding model=%s url=%s", model_ollama, endpoint)
 
     payload: dict[str, Any] = {
         "model": model_ollama,
@@ -141,7 +143,7 @@ def get_embedding(prompt: str, model_ollama: str, *, logger: LoggerProtocol | No
     }
 
     try:
-        resp = requests.post(OLLAMA_URL_EMBEDDINGS, json=payload, timeout=OLLAMA_TIMEOUT)
+        resp = requests.post(endpoint, json=payload, timeout=OLLAMA_TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
         # format attendu: {"embedding": [...]}
