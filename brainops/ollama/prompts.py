@@ -256,6 +256,7 @@ Voici plusieurs glossaires produits à partir de différentes sections d’un m�
 - Trie les entrées par ordre alphabétique
 - Ignore les doublons ou les entrées trop vagues
 - le résultat ne doit pas contenir plus de 5 à 10 entrées
+- Le contenu doit être obligatoirement en **français**.
 
 **Format final attendu :**
 - **Terme** : définition
@@ -279,6 +280,7 @@ Voici plusieurs glossaires produits à partir de différentes sections d’un m�
 - Ignore les doublons ou les entrées trop vagues
 - le résultat ne doit pas contenir plus de 5 à 10 entrées
 - N'ajoute aucune phrase d'introduction ou de conclusion.
+- Le contenu doit être obligatoirement en **français**.
 
 **Format final attendu :**
 - **Terme**: définition
@@ -332,7 +334,7 @@ Texte original :
 - Courants de pensée, événements ou penseurs pouvant éclairer le sujet.
 
 ⚠️ N’ajoute **aucune phrase d’introduction ou de conclusion**.
-La sortie doit être en **Français** uniquement.
+- Le contenu doit être obligatoirement en **français**.
 
 Voici le texte de départ :
 {content}
