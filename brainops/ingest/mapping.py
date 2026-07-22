@@ -43,38 +43,47 @@ def build_metadata_from_audio_manifest(
     media_file_path: Path,
 ) -> NoteMetadata:
     """
-    Construit un NoteMetadata enrichi à partir d'un manifest audio.
+    Construit les métadonnées d'une note depuis un manifest audio.
+
+    Raises:
+        ValueError: Si le manifest est vide ou mal structuré.
     """
-
     if not manifest:
-        raise ValueError("Manifest audio vide")
+        raise ValueError("Manifest audio vide.")
 
-    source = manifest.get("source") or {}
-    authors = manifest.get("authors") or []
+    raw_source = manifest.get("source") or {}
+    raw_authors = manifest.get("authors") or []
 
-    provider = str(source.get("provider", "")).strip()
-    url = str(source.get("url", "")).strip()
-    raw_type = source.get("type")
+    if not isinstance(raw_source, Mapping):
+        raise ValueError("La section 'source' du manifest est invalide.")
 
-    created = str(manifest.get("published_at") or "")
+    provider = str(raw_source.get("provider") or "").strip()
+    url = str(raw_source.get("url") or "").strip()
+    raw_type = raw_source.get("type")
+
+    doc_type = DocumentSemanticType.from_str(raw_type if isinstance(raw_type, str) else None)
+
+    analysis_profile = manifest["analysis_profile"].strip()
+
+    created = str(manifest.get("published_at") or "").strip()
     if not created:
         created = _now_utc_iso()
 
-    semantic_type = _map_manifest_type_to_semantic(raw_type)
     absolute_audio = Path("/mnt/user/Zin-progress/Brainops/")
     media_abs = absolute_audio / to_rel(str(media_file_path))
 
-    metadata = NoteMetadata(
-        title=str(manifest.get("title", "")).strip(),
+    authors = [author.strip() for author in raw_authors if isinstance(author, str) and author.strip()]
+
+    return NoteMetadata(
+        title=str(manifest.get("title") or "").strip(),
         created=created,
         last_modified=_now_utc_iso(),
         source=url,
-        author=", ".join(a for a in authors if isinstance(a, str)),
-        doc_type=semantic_type,
+        author=", ".join(authors),
+        doc_type=doc_type,
+        analysis_profile=analysis_profile,
         provider=provider,
         media_source=str(media_abs),
-        tags=["audio", semantic_type.value],
+        tags=["audio", doc_type.value, analysis_profile],
         status="draft",
     )
-
-    return metadata

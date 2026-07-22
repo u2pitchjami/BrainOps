@@ -1,45 +1,216 @@
 """
-# process/embeddings_utils.py
+Construction des prompts d'analyse et de synthèse.
+
+Module : process/embeddings_utils.py
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from brainops.models.note_context import NoteContext
 
 
-def build_summary_prompt(blocks: Sequence[str] | Sequence[dict[str, Any]], structure: str = "simple") -> str:
+Block = str | Mapping[str, Any]
+
+
+def _extract_block_text(block: Block) -> str:
     """
-    Construit un prompt de synthèse à partir d'une liste de blocs sélectionnés.
+    Extrait le texte d'un bloc sélectionné.
 
-    Accepte soit une liste de strings, soit une liste de dicts {"text": ..., "score": ...}.
+    Args:
+        block: Bloc textuel ou mapping contenant une clé ``text``.
+
+    Returns:
+        Texte nettoyé du bloc.
+
+    Raises:
+        ValueError: Si le bloc ne contient aucun texte exploitable.
     """
-    intro = (
-        "Voici une série d’extraits issus d'un article web réparti en « blocks embeddings »\
-            (chaque bloc est un paragraphe ou une section thématique).\n\n"
-        if structure == "simple"
-        else "Voici plusieurs extraits pertinents issus d'une note. "
-        "Organise les idées par thème, puis fais une synthèse claire.\n\n"
+    if isinstance(block, str):
+        text = block.strip()
+    else:
+        raw_text = block.get("text")
+        text = str(raw_text).strip() if raw_text is not None else ""
+
+    if not text:
+        raise ValueError("Un bloc sélectionné ne contient aucun texte exploitable.")
+
+    return text
+
+
+def _build_blocks_section(blocks: Sequence[Block]) -> str:
+    """
+    Construit la section contenant les extraits sélectionnés.
+
+    Les blocs restent dans l'ordre fourni par le pipeline.
+    """
+    if not blocks:
+        raise ValueError("Impossible de construire le prompt : aucun bloc n'a été fourni.")
+
+    formatted_blocks = [
+        (f'<bloc id="{index}">\n{_extract_block_text(block)}\n</bloc>') for index, block in enumerate(blocks, start=1)
+    ]
+
+    return "\n\n".join(formatted_blocks)
+
+
+def _build_list_section(title: str, values: Sequence[str]) -> str:
+    """
+    Construit une section Markdown à partir d'une liste de consignes.
+
+    Les valeurs vides sont ignorées.
+    """
+    cleaned_values = [value.strip() for value in values if value.strip()]
+
+    if not cleaned_values:
+        return ""
+
+    items = "\n".join(f"- {value}" for value in cleaned_values)
+    return f"### {title}\n{items}"
+
+
+def _build_analysis_profile_section(ctx: NoteContext) -> str:
+    """
+    Construit les paramètres d'analyse issus du profil résolu.
+
+    ``ctx.analysis`` contient déjà la combinaison du profil YAML et des
+    éventuelles personnalisations propres à la note ou au média.
+    """
+    analysis = ctx.analysis
+    sections = [
+        f"### Profil\n{analysis.profile}",
+    ]
+
+    if analysis.objective:
+        sections.append(f"### Objectif\n{analysis.objective.strip()}")
+
+    if analysis.perspective:
+        sections.append(f"### Perspective\n{analysis.perspective.strip()}")
+
+    instructions_section = _build_list_section(
+        "Consignes d'analyse",
+        analysis.instructions,
     )
+    if instructions_section:
+        sections.append(instructions_section)
 
-    def extract_text(b: Any) -> str:
-        if isinstance(b, dict) and "text" in b:
-            return str(b["text"])
-        return str(b)
-
-    parts = [f"Bloc {i + 1}:\n{extract_text(b)}\n" for i, b in enumerate(blocks)]
-    content = "\n".join(parts)
-
-    end = (
-        "\nFais une synthèse claire, structurée et concise de l’ensemble, en identifiant pour chaque point-clé :\n"
-        "- les arguments majeurs,\n"
-        "- les consensus, et les divergences éventuelles entre les sources.\n"
-        "- Précise les faits, chiffres ou données importantes,\n"
-        "- et évite les redites.\n"
-        "La sortie doit être en **français** et lisible dans **Obsidian**.\n"
-        "N'ajoute aucune introduction ni conclusion superflue."
-        if structure == "simple"
-        else "\nFournis une synthèse en plusieurs parties (par thème) si pertinent."
+    reflection_section = _build_list_section(
+        "Questions guidant l'analyse",
+        analysis.reflection_questions,
     )
+    if reflection_section:
+        sections.append(reflection_section)
 
-    return f"{intro}{content}{end}"
+    return "\n\n".join(sections)
+
+
+def _build_media_context_section(ctx: NoteContext) -> str:
+    """
+    Construit le contexte éditorial propre au contenu.
+
+    Le nom exact de l'attribut pourra être adapté lors de la refonte de
+    ``Media``. Ici, l'hypothèse est que le contexte final résolu est placé
+    dans ``ctx.analysis.context``.
+    """
+
+    if not ctx.media or not ctx.media.editorial_context or not ctx.media.editorial_context.strip():
+        return ""
+
+    return f"""
+        ## Contexte éditorial
+
+        Le texte suivant présente le contexte particulier du contenu analysé.
+
+        Utilise-le pour identifier le sujet, les intervenants, le cadre et les
+        questions annoncées. Ne considère pas ses formulations comme des conclusions
+        démontrées. Les extraits du contenu restent la source principale.
+
+        <context>
+        {ctx.media.editorial_context.strip()}
+        </context>
+        """.strip()
+
+
+def build_summary_prompt(
+    blocks: Sequence[Block],
+    ctx: NoteContext,
+) -> str:
+    """
+    Construit le prompt générique de synthèse.
+
+    Le comportement du prompt est piloté par ``ctx.analysis`` et non par le
+    type technique de la source.
+
+    Args:
+        blocks: Blocs retenus par la stratégie de sélection.
+        ctx: Contexte métier complet de la note.
+
+    Returns:
+        Prompt prêt à être envoyé au modèle.
+
+    Raises:
+        ValueError: Si aucun bloc exploitable n'est fourni.
+    """
+    profile_section = _build_analysis_profile_section(ctx)
+    media_context_section = _build_media_context_section(ctx)
+    blocks_section = _build_blocks_section(blocks)
+
+    optional_context = f"\n\n{media_context_section}" if media_context_section else ""
+
+    return f"""
+# Rôle
+
+Tu es un analyste documentaire spécialisé dans la compréhension et la
+synthèse fidèle de contenus.
+
+# Mission
+
+Analyse les extraits fournis comme les différentes parties d'un même contenu.
+Construis une synthèse globale cohérente en appliquant le profil d'analyse
+ci-dessous.
+
+Les extraits ont été sélectionnés automatiquement. Ils peuvent être
+discontinus et ne représentent pas nécessairement l'intégralité du contenu.
+
+N'invente pas les éléments manquants et ne transforme pas une hypothèse,
+une interprétation ou une opinion en fait établi.
+
+## Paramètres d'analyse
+
+{profile_section}{optional_context}
+
+## Extraits à analyser
+
+{blocks_section}
+
+# Règles de traitement
+
+- Identifie les idées principales et leurs relations.
+- Regroupe les informations par thème plutôt que bloc par bloc.
+- Distingue les faits, les interprétations et les opinions lorsque cela est
+  pertinent.
+- Préserve les nuances, réserves, désaccords et incertitudes.
+- Attribue les positions aux bons intervenants lorsque cette information est
+  disponible.
+- Conserve les exemples, chiffres, références et formulations significatives.
+- Signale explicitement lorsqu'une information reste ambiguë ou insuffisamment
+  étayée.
+- Évite les répétitions et les reformulations artificielles.
+- N'ajoute aucune information extérieure au contenu fourni.
+- Utilise les questions guidant l'analyse comme des axes d'attention, sans
+  nécessairement y répondre sous forme de questions-réponses.
+
+# Format attendu
+
+Produis uniquement la synthèse finale en français, au format Markdown
+compatible avec Obsidian.
+
+Structure la réponse avec des titres de niveau 2 et 3 lorsque cela améliore la
+lecture.
+
+N'ajoute pas de préambule tel que « Voici la synthèse ».
+N'ajoute pas de conclusion générique ou décorative.
+""".strip()

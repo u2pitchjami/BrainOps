@@ -10,6 +10,7 @@ from pathlib import Path
 from brainops.header.headers import make_properties
 from brainops.models.classification import ClassificationResult
 from brainops.models.metadata import NoteMetadata
+from brainops.models.note_context import NoteContext
 from brainops.process_import.join.join_header_body import join_header_body
 from brainops.process_import.synthese.add_or_update import update_synthesis
 from brainops.process_import.synthese.embeddings import make_embeddings_synthesis
@@ -18,18 +19,18 @@ from brainops.process_import.synthese.synthesis_utils import (
     make_questions,
     make_syntheses,
 )
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.files import clean_content
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def process_import_syntheses(
     content: str,
     note_id: int,
     synthesis_path: Path,
     meta_final: NoteMetadata,
     classification: ClassificationResult,
+    ctx: NoteContext,
     *,
-    media_id: int | None = None,
     regen: bool = False,
     remake_header: bool = False,
     logger: LoggerProtocol | None = None,
@@ -49,9 +50,8 @@ def process_import_syntheses(
         logger.info("[SYNTH] Démarage Embeddings pour : (id=%s)", note_id)
 
         final_response = make_embeddings_synthesis(
-            note_id,
+            ctx=ctx,
             content=content,
-            source_note=meta_final.doc_type,
             max_chars=3800,
             max_tokens=500,
             logger=logger,
@@ -74,10 +74,11 @@ def process_import_syntheses(
             logger.error("[ERROR] ❌ Glossaire KO")
         logger.info("[SYNTH] 👌 Glossaire OK : (id=%s)", note_id)
 
+        cont_synth = clean_content(final_response)
         logger.debug("[DEBUG] Génération des questions…")
         questions = make_questions(
             note_id=note_id,
-            content=content,
+            content=cont_synth,
             logger=logger,
         )
         if not questions:
@@ -112,6 +113,7 @@ def process_import_syntheses(
                     subcategory=classification.subcategory_name or "",
                     last_modified=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     doc_type=meta_final.doc_type,
+                    analysis_profile=ctx.note_metadata.analysis_profile if ctx.note_metadata else "generic",
                 ),
                 meta_final,  # puis l’existant
             )

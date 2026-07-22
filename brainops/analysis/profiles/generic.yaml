@@ -1,0 +1,22 @@
+profile_version: 1
+name: generic
+
+selection_mode: standard
+
+objective: >
+  Identifier les idées principales, les informations importantes
+  et les conclusions du contenu.
+
+perspective: >
+  Analyser le contenu avec fidélité, sans ajouter d'informations
+  qui ne sont pas présentes dans le document.
+
+instructions:
+  - Distinguer les faits, les interprétations et les opinions lorsque cela est pertinent.
+  - Préserver les nuances, réserves et incertitudes.
+  - Ne pas attribuer une intention ou une position sans élément suffisant.
+  - Mettre en évidence les exemples, chiffres et références importants.
+
+reflection_questions:
+  - Quelles sont les idées essentielles à retenir ?
+  - Quels sont les principaux présupposés ou angles morts du contenu ?

@@ -2,9 +2,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from brainops.header.header_utils import hash_source
+from brainops.models.metadata import DocumentSemanticType
 from brainops.models.note import Note
-from brainops.process_folders.folders import add_folder
-from brainops.sql.folders.db_folder_utils import is_folder_exist
 from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
@@ -15,6 +14,9 @@ def build_note_shell_from_audio_manifest(
     source_url: str | None,
     created_at: str | None,
     language: str | None,
+    doc_type: DocumentSemanticType,
+    analysis_profile: str | None,
+    provider: str | None,
     logger: LoggerProtocol | None = None,
 ) -> Note:
     """
@@ -25,16 +27,16 @@ def build_note_shell_from_audio_manifest(
 
     safe_title = title.strip() if title else file_path.stem
 
-    folder_id = is_folder_exist(folderpath=str(file_path.parent), logger=logger)
-    if not folder_id:
-        folder_id = add_folder(folder_path=str(file_path.parent), logger=logger)
+    # folder_id = is_folder_exist(folderpath=str(file_path.parent), logger=logger)
+    # if not folder_id:
+    #     folder_id = add_folder(folder_path=str(file_path.parent), logger=logger)
 
     return Note(
         id=None,
         parent_id=None,
         title=safe_title,
         file_path=file_path.as_posix(),
-        folder_id=folder_id,
+        folder_id=0,
         category_id=None,
         subcategory_id=None,
         status="processing",
@@ -49,4 +51,6 @@ def build_note_shell_from_audio_manifest(
         content_hash=None,
         source_hash=hash_source(source_url) if source_url else None,
         lang=(language or "").strip().lower()[:3] if language else None,
+        doc_type=doc_type,
+        analysis_profile=analysis_profile if analysis_profile else "generic",
     )

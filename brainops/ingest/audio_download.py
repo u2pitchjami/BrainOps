@@ -6,6 +6,55 @@ from yt_dlp import YoutubeDL
 
 from brainops.utils.logger import LoggerProtocol, ensure_logger
 
+AUDIO_EXTENSIONS: tuple[str, ...] = (
+    ".mp3",
+    ".m4a",
+    ".wav",
+    ".flac",
+    ".opus",
+    ".ogg",
+    ".webm",
+)
+
+
+def find_audio_for_manifest(manifest_path: Path) -> Path | None:
+    """
+    Recherche un audio portant le même nom de base que le manifest.
+    """
+
+    for extension in AUDIO_EXTENSIONS:
+        candidate = manifest_path.with_suffix(extension)
+
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            return candidate
+
+    return None
+
+
+def find_audio_file(directory: Path) -> Path | None:
+    """
+    Recherche un unique fichier audio non vide dans un dossier.
+    """
+
+    if not directory.is_dir():
+        return None
+
+    candidates = sorted(
+        path
+        for path in directory.iterdir()
+        if (path.is_file() and path.suffix.lower() in AUDIO_EXTENSIONS and path.stat().st_size > 0)
+    )
+
+    if not candidates:
+        return None
+
+    if len(candidates) > 1:
+        raise ValueError(
+            f"Plusieurs fichiers audio trouvés dans {directory} : {', '.join(path.name for path in candidates)}"
+        )
+
+    return candidates[0]
+
 
 def download_audio(
     url: str,

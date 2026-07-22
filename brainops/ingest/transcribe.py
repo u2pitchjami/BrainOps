@@ -7,6 +7,28 @@ from faster_whisper import WhisperModel
 from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
+def is_valid_transcription(path: Path) -> bool:
+    """
+    Vérifie qu'une transcription JSON existe et est exploitable.
+    """
+
+    if not path.is_file() or path.stat().st_size == 0:
+        return False
+
+    try:
+        with path.open("r", encoding="utf-8") as file:
+            data: Any = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    if not isinstance(data, dict):
+        return False
+
+    segments = data.get("segments")
+
+    return isinstance(segments, list) and bool(segments)
+
+
 def transcribe_audio(
     audio_path: Path,
     output_json: Path,

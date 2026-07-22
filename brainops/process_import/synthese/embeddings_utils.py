@@ -14,11 +14,31 @@ from brainops.sql.temp_blocs.db_embeddings_temp_blocs import get_blocks_and_embe
 from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
 
 MODES = {
-    "quick": {"ratio": 0.20, "use_mmr": True, "mmr_lambda": 0.8},
-    "standard": {"ratio": 0.30, "use_mmr": True, "mmr_lambda": 0.7},
-    "audit": {"ratio": 0.50, "use_mmr": True, "mmr_lambda": 0.6},
-    "gpt": {"ratio": 0.45, "use_mmr": True, "mmr_lambda": 0.6},
-    "podcast": {"ratio": 0.30, "use_mmr": True, "mmr_lambda": 0.3},
+    "quick": {
+        "ratio": 0.20,
+        "use_mmr": True,
+        "mmr_lambda": 0.8,
+    },
+    "standard": {
+        "ratio": 0.30,
+        "use_mmr": True,
+        "mmr_lambda": 0.7,
+    },
+    "diverse": {
+        "ratio": 0.30,
+        "use_mmr": True,
+        "mmr_lambda": 0.3,
+    },
+    "audit": {
+        "ratio": 0.50,
+        "use_mmr": True,
+        "mmr_lambda": 0.6,
+    },
+    "gpt": {
+        "ratio": 0.45,
+        "use_mmr": True,
+        "mmr_lambda": 0.6,
+    },
 }
 
 

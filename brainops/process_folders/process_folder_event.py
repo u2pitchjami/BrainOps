@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from brainops.models.event import DirEvent
+from brainops.models.folders import FolderType
 from brainops.process_folders.detect_folder_type import detect_folder_type
 from brainops.process_folders.folders import add_folder, update_folder
 from brainops.sql.folders.db_folder_utils import exist_vault_db
@@ -41,7 +42,10 @@ def process_folder_event(event: DirEvent, logger: LoggerProtocol | None = None) 
     if action == "created":
         ftype = detect_folder_type(folder_path)
         logger.info("[FOLDERS] add_folder(%s, type=%s)", folder_path, ftype)
-        add_folder(folder_path, logger=logger)
+        if ftype is FolderType.STORAGE:
+            add_folder(folder_path, logger=logger)
+        else:
+            logger.info("[FOLDERS] Dossier ignoré (type=%s) : %s", ftype, folder_path)
         return
 
     if action == "deleted":

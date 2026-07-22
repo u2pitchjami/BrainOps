@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from brainops.analysis.builder import build_analysis_config
 from brainops.header.header_utils import hash_source
 from brainops.header.headers import make_properties
 from brainops.io.paths import exists, remove_file
@@ -19,7 +20,7 @@ from brainops.process_import.synthese.import_synthese import (
 )
 from brainops.process_import.utils.archive import build_synthesis_path
 from brainops.process_import.utils.divers import rename_file
-from brainops.utils.config import SAV_PATH
+from brainops.utils.config import ANALYSIS_PROFILES_DIR, SAV_PATH
 from brainops.utils.files import clean_content, copy_file_with_date
 from brainops.utils.logger import get_logger
 from brainops.utils.normalization import sanitize_yaml_title
@@ -72,6 +73,13 @@ def import_normal(filepath: str | Path, note_id: int, ctx: NoteContext, force_ca
         else:
             ctx.note_db.source_hash = hash_source(meta_yaml.source)
             logger.debug("[DEBUG] hash basé sur la source: %s -> %s", meta_yaml.source, ctx.note_db.source_hash)
+
+        ctx.analysis = build_analysis_config(
+            profile_name=ctx.note_db.analysis_profile,
+            profiles_dir=Path(ANALYSIS_PROFILES_DIR),
+            logger=ctx.logger,
+        )
+
         content = clean_content(ctx.note_content)
         # wc = ctx.note_wc
         if force_categ is False:
@@ -166,7 +174,7 @@ def import_normal(filepath: str | Path, note_id: int, ctx: NoteContext, force_ca
             synthesis_path=synthesis_path,
             meta_final=meta_final,
             classification=classification,
-            media_id=ctx.note_db.media_id,
+            ctx=ctx,
             logger=logger,
         )
 

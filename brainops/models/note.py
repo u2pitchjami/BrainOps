@@ -7,10 +7,48 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum  # py>=3.11
 from pathlib import Path
 from typing import Any
 
 from brainops.sql.categs.db_categ_utils import get_categ_name
+
+# ---------------------------------------------------------------------------
+# Semantic document type (métier)
+# ---------------------------------------------------------------------------
+
+
+class DocumentSemanticType(StrEnum):
+    """
+    Type éditorial ou support principal de la note.
+    """
+
+    ARTICLE = "article"
+    PODCAST = "podcast"
+    VIDEO = "video"
+    NOTE = "note"
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def from_str(cls, value: str | None) -> DocumentSemanticType:
+        """
+        Construit un type documentaire depuis une chaîne.
+        """
+        if not value:
+            return cls.UNKNOWN
+
+        normalized = value.strip().lower()
+
+        aliases = {
+            "audio": cls.PODCAST,
+            "podcast": cls.PODCAST,
+            "video": cls.VIDEO,
+            "vidéo": cls.VIDEO,
+            "article": cls.ARTICLE,
+            "note": cls.NOTE,
+        }
+
+        return aliases.get(normalized, cls.UNKNOWN)
 
 
 @dataclass(slots=True, kw_only=True)
@@ -45,6 +83,8 @@ class Note:
     content_hash: str | None = None
     source_hash: str | None = None
     lang: str | None = None  # 3 lettres (ex: "fr", "en")
+    doc_type: DocumentSemanticType = DocumentSemanticType.UNKNOWN
+    analysis_profile: str = "generic"
 
     media_id: int | None = None
 
@@ -117,6 +157,8 @@ class Note:
             source_hash=d.get("source_hash"),
             lang=d.get("lang"),
             media_id=d.get("media_id"),
+            doc_type=DocumentSemanticType.from_str(d.get("doc_type")),
+            analysis_profile=str(d.get("analysis_profile", "generic")),
         )
 
     def to_upsert_params(self) -> tuple[Any, ...]:
@@ -142,4 +184,6 @@ class Note:
             self.source_hash,
             self.lang,
             self.media_id,
+            self.doc_type.value,
+            self.analysis_profile,
         )

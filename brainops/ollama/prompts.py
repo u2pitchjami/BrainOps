@@ -44,27 +44,32 @@ Résume l’article suivant en te concentrant sur les éléments clés suivants 
             {content}
             """,
     "add_tags": """
-    You are a bot in a read-it-later app and your responsibility is to help with automatic tagging.
-    CONTENT START HERE
-    {content}
-    CONTENT END HERE
+    Vous êtes un bot dans une application de lecture différée et votre rôle est de contribuer au balisage automatique.
+DÉBUT DU CONTENU
+{content}
+FIN DU CONTENU
 
-    Instructions:
-      1. Read the content
-      2. suggest relevant tags that describe its key themes, topics, and main ideas. The rules are:
-        - Aim for a variety of tags, including broad categories, specific keywords, and potential sub-genres.
-        - The tags language must be in English.
-        - If it's a famous website you may also include a tag for the website.\
-          If the tag is not generic enough, don't include it.
-        - The content can include text for cookie consent, ads and privacy policy, ignore those while tagging.
-        - Aim for 3-5 tags.
-        - if a specific hardware and/or specific software are use add tags with the names for each.
-        - If there are no good tags, leave the array empty.
-      3. The tags must be returned in **strict JSON format**.
-      4. Do **not** use YAML, markdown, bullet points, or any other formatting.
-      5. Return **only** the JSON object with the key "tags" and an array of strings as the value.
-      6. **Do not include** any explanations, titles, or additional text in the response.
-      7. Do **not** add any elements that start with `#` (hashtags or titles) or `-` (bullet points or lists).
+Instructions :
+
+1. Lisez le contenu.
+2. Suggérez des tags pertinentes qui décrivent ses thèmes, sujets et idées principales. Règles :
+  - Utilisez une variété de tags, incluant des catégories générales, des mots-clés spécifiques\
+    et d'éventuels sous-genres.
+  - Les tags doivent être en français.
+  - S'il s'agit d'un site web connu, vous pouvez également inclure une balise pour le site.\
+  Si la balise n'est pas suffisamment générique, ne l'incluez pas.
+  - Le contenu peut inclure des textes relatifs au consentement aux cookies,\
+    à la publicité et à la politique de confidentialité. \
+    ignorez-les lors du balisage.
+  - Visez 3 à 5 tags.
+  - Si un matériel et/ou un logiciel spécifique est utilisé,\
+    ajoutez des tags avec leurs noms.
+  - S'il n'y a pas de tags pertinentes, laissez le tableau vide.
+3. Les tags doivent être renvoyées au **format JSON strict**. 4. N’utilisez **pas** YAML,\
+  Markdown, listes à puces ni aucune autre mise en forme.
+5. Retournez **uniquement** l’objet JSON avec la clé « tags » et un tableau de chaînes de caractères comme valeur.
+6. **N’incluez **aucune** explication, aucun titre ni aucun texte supplémentaire dans la réponse.
+7. N’ajoutez **aucun** élément commençant par `#` (hashtags ou titres) ou `-` (listes à puces ou listes).
 
     """,
     "add_tags_en": """
@@ -103,6 +108,7 @@ Résume l’article suivant en te concentrant sur les éléments clés suivants 
     3. Ne commence ni ne termine par des phrases introductives ou conclusives.
     4. **Ne répète pas** les éléments déjà présents dans la section "summary:" du texte.
     5. Ne retourne **que le résumé**, sans titre, explication ou formatage supplémentaire.
+    6. Le résumé doit être en **français**.
 
     Voici le texte à analyser :
     {content}

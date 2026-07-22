@@ -3,32 +3,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import StrEnum
 from typing import Any
 
-# ---------------------------------------------------------------------------
-# Semantic document type (métier)
-# ---------------------------------------------------------------------------
-
-
-class DocumentSemanticType(StrEnum):
-    ARTICLE = "article"
-    PODCAST = "podcast"
-    INTERVIEW = "interview"
-    REPORT = "report"
-    NOTE = "note"
-    UNKNOWN = "unknown"
-
-    @classmethod
-    def from_str(cls, value: str | None) -> DocumentSemanticType:
-        if not value:
-            return cls.UNKNOWN
-        normalized = value.strip().lower()
-        for member in cls:
-            if member.value == normalized:
-                return member
-        return cls.UNKNOWN
-
+from brainops.models.note import DocumentSemanticType
 
 # ---------------------------------------------------------------------------
 # Metadata principal
@@ -53,6 +30,7 @@ class NoteMetadata:
 
     # --- Nouveaux champs métier ---
     doc_type: DocumentSemanticType = DocumentSemanticType.UNKNOWN
+    analysis_profile: str = "generic"
     provider: str = ""
     media_source: str = ""
 
@@ -91,6 +69,7 @@ class NoteMetadata:
         # Nouveau : semantic doc type
         doc_type_raw = _as_str(data.get("doc_type") or data.get("type"))
         doc_type = DocumentSemanticType.from_str(doc_type_raw)
+        analysis_profile = _as_str(data.get("analysis_profile") or data.get("profile") or "generic")
 
         return cls(
             title=_as_str(data.get("title")),
@@ -105,6 +84,7 @@ class NoteMetadata:
             status=_as_str(data.get("status") or "draft"),
             project=_as_str(data.get("project")),
             doc_type=doc_type,
+            analysis_profile=analysis_profile,
             provider=_as_str(data.get("provider")),
             media_source=_as_str(data.get("media_source")),
         )
@@ -124,6 +104,7 @@ class NoteMetadata:
             status=str(data.get("status", "draft")),
             created=str(data.get("created_at", "")) or None,
             doc_type=DocumentSemanticType.from_str(str(data.get("doc_type", "")) if data.get("doc_type") else None),
+            analysis_profile=str(data.get("analysis_profile", "generic")),
             provider=str(data.get("provider", "")),
             media_source=str(data.get("media_source", "")),
         )
@@ -172,6 +153,7 @@ class NoteMetadata:
             "doc_type": self.doc_type.value,
             "provider": self.provider,
             "media_source": self.media_source,
+            "analysis_profile": self.analysis_profile,
         }
 
     def to_dict(self) -> dict[str, str | list[str]]:

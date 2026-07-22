@@ -96,6 +96,7 @@ LOG_ROTATION_DAYS: int = get_int("LOG_ROTATION_DAYS", 30)
 LOG_LEVEL: str = get_str("LOG_LEVEL", "INFO").upper()
 
 # PATHS
+ANALYSIS_PROFILES_DIR: str = get_required("ANALYSIS_PROFILES_DIR")
 BASE_PATH: str = get_required("BASE_PATH")
 BASE_NOTES: str = get_required("BASE_NOTES")
 Z_STORAGE_PATH: str = get_path_required("Z_STORAGE_PATH")

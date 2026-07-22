@@ -11,7 +11,7 @@ import requests
 
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.process_import.utils.gpu_guard import get_ollama_base_url
-from brainops.utils.config import OLLAMA_TIMEOUT
+from brainops.utils.config import MODEL_EMBEDDINGS, OLLAMA_TIMEOUT
 from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
 
 
@@ -43,8 +43,8 @@ def call_ollama_with_retry(
 
     for attempt in range(retries):
         try:
-            base_url = get_ollama_base_url()
-            if model_ollama == "nomic-embed-text:latest":
+            base_url = get_ollama_base_url(model_name=model_ollama)
+            if model_ollama == MODEL_EMBEDDINGS:
                 endpoint = f"{base_url}/api/embeddings"
                 emb = get_embedding(endpoint, prompt, model_ollama, logger=logger)
                 return json.dumps(emb)
@@ -140,6 +140,7 @@ def get_embedding(
         "model": model_ollama,
         "prompt": prompt,
         "options": {"num_predict": -1, "num_ctx": 4096},
+        "keep_alive": 0,
     }
 
     try:

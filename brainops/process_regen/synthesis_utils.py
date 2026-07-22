@@ -23,7 +23,7 @@ def regen_synthese_from_archive(
     synthesis_path: str,
     meta_final: NoteMetadata,
     classification: ClassificationResult,
-    media_id: int | None = None,
+    ctx: NoteContext,
     logger: LoggerProtocol | None = None,
 ) -> bool:
     """
@@ -52,7 +52,7 @@ def regen_synthese_from_archive(
         synthesis = process_import_syntheses(
             content=content,
             note_id=note_id,
-            media_id=media_id,
+            ctx=ctx,
             synthesis_path=Path(synthesis_path),
             meta_final=meta_final,
             classification=classification,
@@ -134,7 +134,7 @@ def go_synthesis(
         logger.info("[MODIFIED] ✨ (id=%s) : Lancement Regen Synthesis", note_id)
         synthesis = regen_synthese_from_archive(
             note_id=note_id,
-            media_id=ctx.note_db.media_id,
+            ctx=ctx,
             content=ctx.brainops_original,
             synthesis_path=filepath,
             meta_final=ctx.note_metadata,

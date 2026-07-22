@@ -31,6 +31,8 @@ _ALLOWED_COLUMNS: set[str] = {
     "source_hash",
     "lang",
     "media_id",
+    "doc_type",
+    "analysis_profile",
 }
 
 

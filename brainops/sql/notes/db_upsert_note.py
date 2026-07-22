@@ -28,12 +28,12 @@ def upsert_note_from_model(note: Note, *, logger: LoggerProtocol | None = None) 
                   (parent_id, title, file_path, folder_id,
                    category_id, subcategory_id, status, summary,
                    source, author, project, created_at, modified_at,
-                   word_count, content_hash, source_hash, lang, media_id)
+                   word_count, content_hash, source_hash, lang, media_id, doc_type, analysis_profile)
                 VALUES
                   (%s,%s,%s,%s,
                    %s,%s,%s,%s,
                    %s,%s,%s,%s,%s,
-                   %s,%s,%s,%s,%s)
+                   %s,%s,%s,%s,%s,%s,%s)
                 ON DUPLICATE KEY UPDATE
                   parent_id=VALUES(parent_id),
                   title=VALUES(title),
@@ -52,6 +52,8 @@ def upsert_note_from_model(note: Note, *, logger: LoggerProtocol | None = None) 
                   source_hash=VALUES(source_hash),
                   lang=VALUES(lang),
                   media_id=VALUES(media_id),
+                  doc_type=VALUES(doc_type),
+                  analysis_profile=VALUES(analysis_profile),
                   id=LAST_INSERT_ID(id)
                 """,
                 note.to_upsert_params(),

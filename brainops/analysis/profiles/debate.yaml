@@ -1,0 +1,23 @@
+profile_version: 1
+name: debate
+
+selection_mode: diverse
+
+objective: >
+  Comprendre les positions défendues, leurs arguments,
+  leurs présupposés et leurs conséquences.
+
+perspective: >
+  Reconstruire fidèlement les raisonnements sans considérer
+  qu'une position est correcte ou incorrecte par défaut.
+
+instructions:
+  - Distinguer les positions des intervenants.
+  - Séparer faits, interprétations et opinions.
+  - Identifier les accords, désaccords et contradictions.
+  - Ne pas attribuer un propos lorsque le locuteur est incertain.
+
+reflection_questions:
+  - Quelles conceptions de la société sont mobilisées ?
+  - Quelles hypothèses implicites structurent les positions ?
+  - Quels sont les principaux angles morts ?

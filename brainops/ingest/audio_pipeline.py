@@ -4,13 +4,13 @@ from pathlib import Path
 import re
 import shutil
 
-from brainops.ingest.audio_download import download_audio
+from brainops.ingest.audio_download import download_audio, find_audio_file, find_audio_for_manifest
 from brainops.ingest.audio_manifest import load_manifest
 from brainops.ingest.builder_note import build_note_shell_from_audio_manifest
 from brainops.ingest.generate_markdown import generate_markdown_from_whisper
 from brainops.ingest.mapping import build_metadata_from_audio_manifest
 from brainops.ingest.media_builder import build_media_from_manifest
-from brainops.ingest.transcribe import transcribe_audio
+from brainops.ingest.transcribe import is_valid_transcription, transcribe_audio
 from brainops.io.note_writer import write_metadata_to_note
 from brainops.io.read_note import read_note_content
 from brainops.sql.notes.db_medias import upsert_media_from_model
@@ -33,6 +33,9 @@ def process_audio_manifests(
     manifest_dir: Path = Path(MANIFEST_DIR),
     workdir: Path = Path(WORK_DIR),
     imports_path: Path = Path(IMPORTS_PATH),
+    *,
+    force_download: bool = False,
+    force_transcription: bool = False,
 ) -> list[Path]:
     """
     Traite tous les manifests audio :
@@ -57,6 +60,7 @@ def process_audio_manifests(
             logger.info("Processing manifest: %s", manifest_path.name)
             manifest = load_manifest(manifest_path)
             logger.info("Loaded manifest: %s by %s", manifest["title"], ", ".join(manifest["authors"]))
+            logger.debug("Manifest content: %s", manifest)
 
             published_at = manifest["published_at"]
             title = manifest["title"]
@@ -66,15 +70,47 @@ def process_audio_manifests(
             output_dir = workdir / folder_name
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            # --- Download audio ---
-            audio_file = download_audio(
-                url=manifest["source"]["url"],
-                title=title,
-                published_at=published_at,
-                output_dir=output_dir,
-                logger=logger,
-            )
-            logger.info("Audio downloaded: %s", audio_file)
+            # --- Audio acquisition ---
+            audio_file = find_audio_file(output_dir)
+
+            if audio_file is not None:
+                logger.info(
+                    "Audio already present in work directory, download skipped: %s",
+                    audio_file,
+                )
+            else:
+                imported_audio = find_audio_for_manifest(manifest_path)
+
+                if imported_audio is not None:
+                    destination = output_dir / imported_audio.name
+
+                    try:
+                        audio_file = Path(
+                            shutil.move(
+                                imported_audio.as_posix(),
+                                destination.as_posix(),
+                            )
+                        )
+                    except OSError as exc:
+                        raise RuntimeError(
+                            f"Impossible de déplacer l'audio {imported_audio} vers {destination}"
+                        ) from exc
+
+                    logger.info(
+                        "Local audio moved from manifest directory: %s -> %s",
+                        imported_audio,
+                        audio_file,
+                    )
+                else:
+                    audio_file = download_audio(
+                        url=manifest["source"]["url"],
+                        title=title,
+                        published_at=published_at,
+                        output_dir=output_dir,
+                        logger=logger,
+                    )
+
+                    logger.info("Audio downloaded: %s", audio_file)
 
             note_metadata = build_metadata_from_audio_manifest(manifest=manifest, media_file_path=audio_file)
 
@@ -85,19 +121,30 @@ def process_audio_manifests(
                     "note_author": note_metadata.author,
                     "note_source": note_metadata.source,
                     "note_created": note_metadata.created,
+                    "note_doc_type": note_metadata.doc_type,
+                    "note_analysis_profile": note_metadata.analysis_profile,
                 },
             )
 
             # --- Transcription ---
             transcription_path = output_dir / "transcription.json"
-            transcribe_audio(
-                audio_path=audio_file,
-                output_json=transcription_path,
-                model_size="medium",
-                language=language,
-                logger=logger,
-            )
-            logger.info("Transcription completed: %s", transcription_path)
+            if not force_transcription and is_valid_transcription(transcription_path):
+                logger.info(
+                    "Valid transcription already present, transcription skipped: %s",
+                    transcription_path,
+                )
+            else:
+                transcribe_audio(
+                    audio_path=audio_file,
+                    output_json=transcription_path,
+                    model_size="medium",
+                    language=language,
+                    logger=logger,
+                )
+                logger.info(
+                    "Transcription completed: %s",
+                    transcription_path,
+                )
 
             # --- Markdown generation ---
             markdown_filename = f"{slugify(title)}.md"
@@ -127,6 +174,9 @@ def process_audio_manifests(
                 source_url=manifest["source"]["url"],
                 created_at=manifest.get("published_at"),
                 language=manifest.get("language"),
+                doc_type=note_metadata.doc_type,
+                analysis_profile=note_metadata.analysis_profile,
+                provider=note_metadata.provider,
                 logger=logger,
             )
 
@@ -136,7 +186,7 @@ def process_audio_manifests(
                 note_id=note_id,
                 manifest=manifest,
                 media_file_path=audio_file,
-                semantic_type=note_metadata.doc_type,
+                doc_type=note_metadata.doc_type,
                 logger=logger,
             )
 

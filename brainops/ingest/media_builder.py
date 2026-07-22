@@ -34,7 +34,7 @@ def build_media_from_manifest(
     note_id: int,
     manifest: Mapping[str, Any],
     media_file_path: Path,
-    semantic_type: DocumentSemanticType,
+    doc_type: DocumentSemanticType,
     logger: LoggerProtocol | None = None,
 ) -> Media:
     """
@@ -44,20 +44,29 @@ def build_media_from_manifest(
     if not manifest:
         raise ValueError("Manifest vide pour build_media_from_manifest")
 
-    source = manifest.get("source") or {}
+    raw_source = manifest.get("source")
+    if not isinstance(raw_source, Mapping):
+        raise ValueError("Le champ 'source' du manifest doit être un objet")
 
-    raw_media_type = str(source.get("type", "")).strip().lower()
-    provider = str(source.get("provider", "")).strip() or None
-    source_url = str(source.get("url", "")).strip() or None
+    raw_media_type = str(raw_source.get("type", "")).strip().lower()
+    provider = str(raw_source.get("provider", "")).strip() or None
+    source_url = str(raw_source.get("url", "")).strip() or None
 
     language = str(manifest.get("language", "")).strip() or None
     published_at = manifest.get("published_at")
-
     manifest_version = manifest.get("manifest_version")
-    duration = extract_audio_duration_seconds(media_file_path, logger=logger)
 
-    file_size = None
-    checksum = None
+    raw_editorial_context = manifest.get("editorial_context")
+
+    editorial_context = raw_editorial_context.strip() if raw_editorial_context is not None else None
+
+    duration = extract_audio_duration_seconds(
+        media_file_path,
+        logger=logger,
+    )
+
+    file_size: int | None = None
+    checksum: str | None = None
 
     if media_file_path.exists():
         file_size = media_file_path.stat().st_size
@@ -67,7 +76,7 @@ def build_media_from_manifest(
         id=None,
         note_id=note_id,
         media_type=raw_media_type or "audio",
-        semantic_type=semantic_type.value,
+        doc_type=raw_media_type or doc_type.value or DocumentSemanticType.UNKNOWN.value,
         provider=provider,
         source_url=source_url,
         storage_path=media_file_path.as_posix(),
@@ -77,5 +86,6 @@ def build_media_from_manifest(
         file_size_bytes=file_size,
         checksum=checksum,
         manifest_version=manifest_version,
+        editorial_context=editorial_context,
         created_at=None,
     )

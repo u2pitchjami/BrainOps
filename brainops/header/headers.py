@@ -39,6 +39,7 @@ def make_properties(
     try:
         logger.debug("[make_properties] start for (note_id=%s)", note_id)
         logger.debug(f"meta_yaml : {meta_yaml}")
+        logger.debug(f"analysis_profile : {meta_yaml.analysis_profile}")
         # 2) Appels IA (sur body uniquement)
         logger.debug("[make_properties] IA: tags + summary")
         tags = get_tags_from_ollama(content, note_id, logger=logger) or []
@@ -54,8 +55,9 @@ def make_properties(
                 subcategory=classification.subcategory_name or "",
                 last_modified=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 doc_type=meta_yaml.doc_type,
+                # analysis_profile=meta_yaml.analysis_profile
             ),
-            meta_yaml,  # puis l’existant
+            meta_yaml,  # puis lexistant
         )
 
         return meta_final

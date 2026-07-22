@@ -1,7 +1,8 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from brainops.analysis.config import AnalysisConfig
 from brainops.header.header_utils import hash_source
 from brainops.io.extract_section import BrainopsSection, extract_brainops_section
 from brainops.io.note_reader import read_note_full
@@ -27,6 +28,7 @@ class NoteContext:
     base_fp: str | None = None
     note_classification: ClassificationResult | None = None
     note_metadata: NoteMetadata | None = None
+    analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     media: Media | None = None
     note_content: str | None = None
     brainops_summary: str | None = None
@@ -40,6 +42,7 @@ class NoteContext:
         self.logger = ensure_logger(self.logger, __name__)
         self.logger.debug("Création NoteContext pour %s", self.file_path)
         self.base_fp = str(Path(self.file_path).parent)
+
         if not self.note_metadata or not self.note_content:
             metadata, content = read_note_full(self.file_path, logger=self.logger)
             if not self.note_metadata:
@@ -109,7 +112,7 @@ class NoteContext:
             if self.note_db.media_id:
                 if self.media:
                     print(f"media: {self.media}")
-                    if self.note_metadata.doc_type != self.media.semantic_type:
+                    if self.note_metadata.doc_type != self.media.doc_type:
                         changes["doc_type"] = self.note_metadata.doc_type
 
                     if self.note_metadata.provider != self.media.provider:
@@ -174,10 +177,10 @@ class NoteContext:
 
         if self.logger is not None:
             self.logger.info("Note ID=%s : changements détectés :", self.note_db.id)
-        for field, new_val in diffs.items():
-            if field in _ALLOWED_COLUMNS_MEDIAS:
-                old_val = getattr(self.media, field, None)
+        for field_name, new_val in diffs.items():
+            if field_name in _ALLOWED_COLUMNS_MEDIAS:
+                old_val = getattr(self.media, field_name, None)
             else:
-                old_val = getattr(self.note_db, field, None)
+                old_val = getattr(self.note_db, field_name, None)
             if self.logger is not None:
-                self.logger.info(" - %s: %r → %r", field, old_val, new_val)
+                self.logger.info(" - %s: %r → %r", field_name, old_val, new_val)

@@ -18,6 +18,7 @@ DEFAULT_CHECK_INTERVAL_SEC: Final[int] = 180
 DEFAULT_TIMEOUT_SEC: Final[int] = 3600
 DEFAULT_MAX_RETRIES: Final[int] = 20
 DEFAULT_PROMETHEUS_TIMEOUT_SEC: Final[float] = 3.0
+OLLAMA_PS_TIMEOUT_SEC = 3.0
 
 
 class GPUUnavailableError(RuntimeError):
@@ -30,6 +31,58 @@ class PrometheusQueryError(RuntimeError):
     """
     Raised when Prometheus query fails.
     """
+
+
+class OllamaStatusError(RuntimeError):
+    """
+    Raised when Ollama model status cannot be retrieved.
+    """
+
+
+def normalize_model_name(model_name: str) -> str:
+    """
+    Normalize an Ollama model name for comparison.
+    """
+    normalized = model_name.strip()
+
+    if ":" not in normalized:
+        return f"{normalized}:latest"
+
+    return normalized
+
+
+def get_gpu_loaded_models() -> set[str]:
+    """
+    Return model names currently loaded by the GPU Ollama instance.
+    """
+    try:
+        response = requests.get(
+            f"{OLLAMA_GPU_URL.rstrip('/')}/api/ps",
+            timeout=OLLAMA_PS_TIMEOUT_SEC,
+        )
+        response.raise_for_status()
+
+        payload: dict[str, Any] = response.json()
+        raw_models = payload.get("models", [])
+
+        if not isinstance(raw_models, list):
+            raise OllamaStatusError("Invalid Ollama /api/ps response.")
+
+        loaded_models: set[str] = set()
+
+        for raw_model in raw_models:
+            if not isinstance(raw_model, dict):
+                continue
+
+            raw_name = raw_model.get("name")
+
+            if isinstance(raw_name, str):
+                loaded_models.add(normalize_model_name(raw_name))
+
+        return loaded_models
+
+    except (requests.RequestException, ValueError) as exc:
+        raise OllamaStatusError("Unable to retrieve loaded models from GPU Ollama.") from exc
 
 
 def query_prometheus_value(
@@ -142,15 +195,42 @@ def is_gpu_available(
         return False
 
 
-def get_ollama_base_url() -> str:
+def get_ollama_base_url(
+    model_name: str,
+    *,
+    min_required_mb: int = DEFAULT_MIN_VRAM_MB,
+) -> str:
     """
-    Returns the best Ollama URL according to GPU availability.
+    Select the most appropriate Ollama backend.
+
+    A model already loaded on the GPU remains eligible even if the remaining free VRAM is below the normal loading
+    threshold.
     """
-    if is_gpu_available():
-        LOGGER.info("[OLLAMA ROUTING] Using GPU Ollama: %s", OLLAMA_GPU_URL)
+    normalized_model = normalize_model_name(model_name)
+
+    try:
+        loaded_models = get_gpu_loaded_models()
+    except OllamaStatusError:
+        LOGGER.warning("[OLLAMA ROUTING] Unable to inspect GPU Ollama models.")
+    else:
+        if normalized_model in loaded_models:
+            LOGGER.info(
+                "[OLLAMA ROUTING] backend=gpu model=%s reason=model_already_loaded",
+                normalized_model,
+            )
+            return OLLAMA_GPU_URL
+
+    if is_gpu_available(min_required_mb=min_required_mb):
+        LOGGER.info(
+            "[OLLAMA ROUTING] backend=gpu model=%s reason=enough_resources",
+            normalized_model,
+        )
         return OLLAMA_GPU_URL
 
-    LOGGER.info("[OLLAMA ROUTING] Using CPU Ollama: %s", OLLAMA_CPU_URL)
+    LOGGER.info(
+        "[OLLAMA ROUTING] backend=cpu model=%s reason=gpu_resources_unavailable",
+        normalized_model,
+    )
     return OLLAMA_CPU_URL
 
 

@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from brainops.models.exceptions import BrainOpsError, ErrCode
-from brainops.models.note import Note
+from brainops.models.note import DocumentSemanticType, Note
 from brainops.process_notes.new_note_utils import (
     _normalize_abs_posix,
 )
@@ -59,6 +59,8 @@ def new_note(file_path: str | Path, logger: LoggerProtocol | None = None) -> int
             content_hash=None,
             source_hash=None,
             lang=None,
+            doc_type=DocumentSemanticType.UNKNOWN,
+            analysis_profile="generic",
         )
 
         # ---- upsert en DB -----------------------------------------------------
