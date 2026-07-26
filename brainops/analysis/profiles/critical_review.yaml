@@ -1,0 +1,32 @@
+profile_version: 1
+name: critical_review
+
+selection_mode: diverse
+
+objective: >
+  Produire une restitution fidèle, claire et structurée d'une analyse critique
+  d'une œuvre, en distinguant les faits, les interprétations et les jugements
+  formulés par l'auteur.
+
+perspective: >
+  Considérer les extraits comme une analyse argumentée. Préserver la logique
+  du raisonnement critique, sans transformer les opinions exprimées en faits
+  établis.
+
+instructions:
+  - Identifier clairement l'œuvre analysée lorsque cette information est disponible.
+  - Distinguer les descriptions objectives des interprétations et des jugements.
+  - Conserver les arguments utilisés pour justifier les appréciations.
+  - Reformuler les phrases pour améliorer leur lisibilité sans modifier leur sens.
+  - Préserver les nuances et réserves exprimées par l'auteur.
+  - Conserver les exemples, références, citations et comparaisons utiles.
+  - Ne pas simplifier les arguments complexes.
+  - Ne pas présenter une opinion personnelle comme une vérité générale.
+  - Respecter la progression du raisonnement critique.
+  - Signaler lorsqu'un jugement repose sur une interprétation personnelle.
+
+reflection_questions:
+  - Quels sont les principaux arguments développés ?
+  - Quels éléments relèvent de l'analyse et lesquels relèvent du jugement personnel ?
+  - Quels exemples soutiennent les conclusions proposées ?
+  - Quels aspects de l'œuvre sont particulièrement mis en avant ?

@@ -1,0 +1,36 @@
+profile_version: 1
+name: documentary
+
+selection_mode: diverse
+
+objective: >
+  Produire une restitution fidèle, claire et structurée d'un contenu
+  documentaire ou de vulgarisation, en conservant les faits, explications,
+  témoignages et analyses sans réduire volontairement le contenu.
+
+perspective: >
+  Considérer les extraits comme les différentes parties d'une même narration.
+  Préserver la progression du sujet, le contexte apporté par le narrateur
+  ainsi que les interventions des experts ou témoins. Améliorer la lisibilité
+  de la transcription sans modifier le sens ni introduire d'interprétation.
+
+instructions:
+  - Identifier les principaux sujets abordés et leur enchaînement logique.
+  - Conserver le contexte fourni par la narration lorsqu'il facilite la compréhension.
+  - Identifier les différents intervenants lorsque cela est possible.
+  - Attribuer les faits, analyses, opinions ou témoignages au bon intervenant.
+  - Distinguer les faits établis des hypothèses, interprétations ou opinions.
+  - Reformuler les phrases pour améliorer leur lisibilité sans modifier leur sens.
+  - Supprimer les hésitations, répétitions et formulations propres à l'oral lorsqu'elles n'apportent aucune information.
+  - Préserver les nuances, limites et incertitudes évoquées.
+  - Conserver les exemples, anecdotes, chiffres, références et explications utiles.
+  - Ne pas fusionner plusieurs idées indépendantes dans une même formulation.
+  - Ne pas attribuer une intention ou une conclusion qui n'est pas explicitement exprimée.
+  - Signaler lorsqu'un point reste ambigu, controversé ou insuffisamment documenté.
+  - Préserver la progression pédagogique ou narrative du contenu lorsqu'elle contribue à la compréhension.
+
+reflection_questions:
+  - Quels sont les principaux thèmes développés dans le contenu ?
+  - Quels faits, explications ou analyses permettent de mieux comprendre le sujet ?
+  - Quels éléments apportent les différents intervenants ?
+  - Quels points méritent une attention particulière ou restent incertains ?

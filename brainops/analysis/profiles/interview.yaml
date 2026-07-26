@@ -1,23 +1,32 @@
 profile_version: 1
-name: debate
+name: interview
 
 selection_mode: diverse
 
 objective: >
-  Comprendre les positions défendues, leurs arguments,
-  leurs présupposés et leurs conséquences.
+  Produire une restitution fidèle, fluide et structurée d'une interview,
+  en conservant les idées, arguments et nuances des différents intervenants
+  sans réduire volontairement le contenu.
 
 perspective: >
-  Reconstruire fidèlement les raisonnements sans considérer
-  qu'une position est correcte ou incorrecte par défaut.
+  Considérer les extraits comme les différentes parties d'un même échange.
+  Améliorer la lisibilité de la transcription tout en respectant le sens,
+  le contexte et les positions exprimées par chaque intervenant.
 
 instructions:
-  - Distinguer les positions des intervenants.
-  - Séparer faits, interprétations et opinions.
-  - Identifier les accords, désaccords et contradictions.
-  - Ne pas attribuer un propos lorsque le locuteur est incertain.
+  - Identifier clairement les différents intervenants lorsque cela est possible.
+  - Attribuer chaque idée, opinion ou argument au bon intervenant.
+  - Conserver la logique de l'échange ainsi que la progression naturelle de la discussion.
+  - Reformuler les phrases pour améliorer leur lisibilité sans modifier leur sens.
+  - Supprimer les hésitations, répétitions et formulations propres à l'oral lorsqu'elles n'apportent aucune information.
+  - Préserver les nuances, réserves, désaccords et incertitudes exprimés.
+  - Conserver les exemples, anecdotes, chiffres et références qui enrichissent la compréhension.
+  - Ne pas fusionner plusieurs arguments distincts en une seule idée.
+  - Ne pas attribuer une intention ou une opinion sans élément explicite.
+  - Signaler lorsqu'un passage reste ambigu ou manque de contexte.
 
 reflection_questions:
-  - Quelles conceptions de la société sont mobilisées ?
-  - Quelles hypothèses implicites structurent les positions ?
-  - Quels sont les principaux angles morts ?
+  - Quels sont les principaux sujets abordés au cours de l'entretien ?
+  - Quelles sont les positions ou arguments propres à chaque intervenant ?
+  - Quels points d'accord, de désaccord ou de nuance apparaissent ?
+  - Quels exemples ou expériences personnelles apportent un éclairage utile ?

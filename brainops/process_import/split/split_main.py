@@ -4,16 +4,194 @@ process_import.utils.large_note.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import re
+from typing import Literal
 
+from brainops.models.exceptions import BrainOpsError, ErrCode
+from brainops.process_import.split.split_qa_paragraphs import split_qa_paragraphs
 from brainops.process_import.split.split_utils import (
     count_tokens,
+    split_large_note,
+    split_large_note_by_titles,
     split_linear_text,
     split_section_if_needed,
     split_text_safely,
 )
 from brainops.process_import.split.split_windows_by_paragraphs import split_windows_by_paragraphs
 from brainops.utils.logger import LoggerProtocol, ensure_logger
+
+type SplitMethod = Literal[
+    "auto",
+    "titles_and_words",
+    "titles",
+    "words",
+    "qa_paragraphs",
+    "split_windows_by_paragraphs",
+]
+
+
+def split_note_content(
+    *,
+    content: str,
+    split_method: SplitMethod,
+    max_tokens: int,
+    max_chars: int,
+    logger: LoggerProtocol,
+    note_id: int | None = None,
+) -> list[str]:
+    """
+    Découpe le contenu d'une note selon la stratégie demandée.
+
+    Cette fonction sélectionne uniquement la stratégie de découpage.
+    Elle ne gère ni les appels IA, ni la persistance, ni l'écriture
+    des résultats.
+
+    Args:
+        content: Contenu textuel à découper.
+        split_method: Stratégie de découpage à appliquer.
+        max_tokens: Nombre maximal de tokens par bloc.
+        max_chars: Nombre maximal de caractères par bloc.
+        logger: Logger BrainOps.
+        note_id: Identifiant facultatif de la note, utilisé pour les logs
+            et le contexte des erreurs.
+
+    Returns:
+        La liste des blocs textuels non vides.
+
+    Raises:
+        ValueError: Si le contenu ou les limites sont invalides.
+        BrainOpsError: Si la méthode de découpage est inconnue ou si aucun
+            bloc exploitable n'est produit.
+    """
+    normalized_content = content.strip()
+
+    if not normalized_content:
+        raise ValueError("Le contenu à découper ne peut pas être vide")
+
+    if max_tokens <= 0:
+        raise ValueError(f"max_tokens doit être strictement positif : {max_tokens}")
+
+    if max_chars <= 0:
+        raise ValueError(f"max_chars doit être strictement positif : {max_chars}")
+
+    logger.debug(
+        ("Début du découpage de la note : note_id=%s, méthode=%s, caractères=%d, max_tokens=%d, max_chars=%d"),
+        note_id,
+        split_method,
+        len(normalized_content),
+        max_tokens,
+        max_chars,
+    )
+
+    match split_method:
+        case "auto":
+            raw_blocks = smart_split_for_embeddings(
+                normalized_content,
+                max_tokens,
+                max_chars,
+                logger,
+            )
+
+        case "titles_and_words":
+            raw_blocks = split_large_note_by_titles_and_words(
+                content=normalized_content,
+                max_tokens=max_tokens,
+                max_chars=max_chars,
+                logger=logger,
+            )
+
+        case "titles":
+            raw_blocks = split_large_note_by_titles(
+                normalized_content,
+            )
+
+        case "words":
+            raw_blocks = split_large_note(
+                content=normalized_content,
+                max_tokens=max_tokens,
+                max_chars=max_chars,
+            )
+
+        case "qa_paragraphs":
+            raw_blocks = split_qa_paragraphs(
+                text=normalized_content,
+                logger=logger,
+            )
+
+        case "split_windows_by_paragraphs":
+            raw_blocks = split_windows_by_paragraphs(
+                text=normalized_content,
+                max_tokens=max_tokens,
+                max_chars=max_chars,
+                logger=logger,
+            )
+
+        case _:
+            logger.error(
+                "Méthode de découpage inconnue : note_id=%s, méthode=%s",
+                note_id,
+                split_method,
+            )
+
+            raise BrainOpsError(
+                f"Méthode de découpage inconnue : {split_method}",
+                code=ErrCode.UNEXPECTED,
+                ctx={
+                    "note_id": note_id,
+                    "split_method": split_method,
+                },
+            )
+
+    blocks = _normalize_split_blocks(raw_blocks)
+
+    if not blocks:
+        logger.error(
+            ("Le découpage n'a produit aucun bloc exploitable : note_id=%s, méthode=%s"),
+            note_id,
+            split_method,
+        )
+
+        raise BrainOpsError(
+            "Le découpage de la note n'a produit aucun bloc exploitable",
+            code=ErrCode.UNEXPECTED,
+            ctx={
+                "note_id": note_id,
+                "split_method": split_method,
+            },
+        )
+
+    logger.info(
+        ("Note découpée : note_id=%s, blocs=%d, méthode=%s"),
+        note_id,
+        len(blocks),
+        split_method,
+    )
+
+    return blocks
+
+
+def _normalize_split_blocks(
+    blocks: Sequence[str],
+) -> list[str]:
+    """
+    Nettoie les blocs produits par une stratégie de découpage.
+
+    Args:
+        blocks: Blocs textuels bruts.
+
+    Returns:
+        Les blocs nettoyés, sans éléments vides.
+    """
+    normalized_blocks: list[str] = []
+
+    for block in blocks:
+        normalized_block = block.strip()
+
+        if normalized_block:
+            normalized_blocks.append(normalized_block)
+
+    return normalized_blocks
 
 
 def smart_split_for_embeddings(

@@ -1,0 +1,33 @@
+profile_version: 1
+name: public_forum
+
+selection_mode: diverse
+
+objective: >
+  Produire une restitution fidèle, claire et structurée d'une émission
+  de discussion réunissant un animateur, des experts et des interventions
+  du public autour d'un thème commun.
+
+perspective: >
+  Considérer les extraits comme les différentes parties d'un échange collectif.
+  Préserver les rôles des intervenants ainsi que les interactions entre les
+  questions du public, les réponses des experts et les relances de l'animateur.
+
+instructions:
+  - Identifier le thème principal de l'émission.
+  - Identifier les différents intervenants lorsque cela est possible.
+  - Distinguer les questions, témoignages et opinions du public des réponses des experts.
+  - Attribuer chaque information, explication ou opinion au bon intervenant.
+  - Préserver les échanges qui permettent d'éclairer ou de nuancer le sujet.
+  - Reformuler les phrases pour améliorer leur lisibilité sans modifier leur sens.
+  - Supprimer les hésitations, répétitions et formulations propres à l'oral lorsqu'elles n'apportent aucune information.
+  - Conserver les exemples, expériences, chiffres et références utiles.
+  - Distinguer les faits établis des opinions ou expériences personnelles.
+  - Ne pas présenter un témoignage individuel comme une conclusion générale.
+  - Signaler lorsqu'une question reste sans réponse ou lorsqu'un point demeure incertain.
+
+reflection_questions:
+  - Quel est le thème central de l'émission ?
+  - Quelles informations apportent les experts ?
+  - Quelles questions ou préoccupations reviennent chez les participants ?
+  - Quels éléments de réponse permettent de mieux comprendre le sujet ?

@@ -13,10 +13,9 @@ import time
 from brainops.io.paths import to_abs
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.types import StrOrPath
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def wait_for_file(
     file_path: StrOrPath,
     timeout: float = 3.0,
@@ -49,7 +48,6 @@ def hash_file_content(filepath: StrOrPath) -> str | None:
         return None
 
 
-@with_child_logger
 def copy_file_with_date(
     filepath: StrOrPath,
     destination_folder: StrOrPath,
@@ -77,7 +75,6 @@ def copy_file_with_date(
     return dst
 
 
-@with_child_logger
 def move_file_with_date(
     filepath: StrOrPath,
     destination_folder: StrOrPath,

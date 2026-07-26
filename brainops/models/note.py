@@ -11,8 +11,6 @@ from enum import StrEnum  # py>=3.11
 from pathlib import Path
 from typing import Any
 
-from brainops.sql.categs.db_categ_utils import get_categ_name
-
 # ---------------------------------------------------------------------------
 # Semantic document type (métier)
 # ---------------------------------------------------------------------------
@@ -24,6 +22,9 @@ class DocumentSemanticType(StrEnum):
     """
 
     ARTICLE = "article"
+    TUTORIAL = "tutorial"
+    PERSONAL = "personal"
+    PROJECT = "project"
     PODCAST = "podcast"
     VIDEO = "video"
     NOTE = "note"
@@ -45,6 +46,12 @@ class DocumentSemanticType(StrEnum):
             "video": cls.VIDEO,
             "vidéo": cls.VIDEO,
             "article": cls.ARTICLE,
+            "tutorial": cls.TUTORIAL,
+            "tutoriel": cls.TUTORIAL,
+            "personal": cls.PERSONAL,
+            "personnel": cls.PERSONAL,
+            "project": cls.PROJECT,
+            "projet": cls.PROJECT,
             "note": cls.NOTE,
         }
 
@@ -64,10 +71,6 @@ class Note:
 
     title: str
     file_path: str
-    folder_id: int | None = None
-
-    category_id: int | None = None
-    subcategory_id: int | None = None
 
     status: str | None = None
     summary: str | None = None
@@ -91,8 +94,6 @@ class Note:
     # ---- transients (non stockés) ---------------------------------------------
     name: str = field(init=False, repr=False)  # basename dérivé de file_path
     ext: str = field(init=False, repr=False)  # extension dérivée
-    cat_name: str | None = field(init=False, default=None, repr=False)  # catégorie dérivée
-    sub_cat_name: str | None = field(init=False, default=None, repr=False)  # sous-catégorie dérivée
 
     def __post_init__(self) -> None:
         """
@@ -110,11 +111,6 @@ class Note:
         # Sécurité: word_count >= 0
         if self.word_count is None or self.word_count < 0:
             self.word_count = 0
-
-        if self.cat_name is None and self.category_id is not None:
-            self.cat_name = get_categ_name(self.category_id)
-        if self.sub_cat_name is None and self.subcategory_id is not None:
-            self.sub_cat_name = get_categ_name(self.subcategory_id)
 
     # ------------------- Mapping DB --------------------------------------------
 
@@ -141,9 +137,6 @@ class Note:
             parent_id=d.get("parent_id"),
             title=str(d.get("title", "")),
             file_path=str(d.get("file_path", "")),
-            folder_id=int(d.get("folder_id", 0)),
-            category_id=d.get("category_id"),
-            subcategory_id=d.get("subcategory_id"),
             status=d.get("status"),
             summary=d.get("summary"),
             source=d.get("source"),
@@ -169,9 +162,6 @@ class Note:
             self.parent_id,
             self.title,
             self.file_path,
-            self.folder_id,
-            self.category_id,
-            self.subcategory_id,
             self.status,
             self.summary,
             self.source,

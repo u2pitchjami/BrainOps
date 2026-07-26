@@ -6,10 +6,9 @@ from brainops.io.note_writer import safe_write
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.metadata import NoteMetadata
 from brainops.process_import.join.join_utils import join_metadata_to_note
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def join_header_body(
     body: str,
     meta_yaml: NoteMetadata,

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 _QA_LINE = re.compile(r"^\[T\d+\]\[(user|assistant)\]:", re.M)
 
@@ -30,7 +30,6 @@ def _looks_like_qa_block(block: str) -> bool:
     return has_user and has_asst
 
 
-@with_child_logger
 def split_qa_paragraphs(
     text: str, *, logger: LoggerProtocol | None = None, min_chars: int = 240, max_chars: int = 2000
 ) -> list[str]:

@@ -11,11 +11,9 @@ from brainops.sql.db_utils import safe_execute_dict
 from brainops.utils.logger import (
     LoggerProtocol,
     ensure_logger,
-    with_child_logger,
 )
 
 
-@with_child_logger
 def upsert_media_from_model(
     media: Media,
     *,

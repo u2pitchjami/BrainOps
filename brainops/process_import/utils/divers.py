@@ -15,7 +15,7 @@ from brainops.io.utils import count_words
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.sql.get_linked.db_get_linked_notes_utils import get_note_lang
 from brainops.utils.config import MODEL_EN, MODEL_FR
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 from brainops.utils.normalization import sanitize_created, sanitize_filename
 
 
@@ -25,7 +25,6 @@ def hash_content(content: str, algo: str = "sha256") -> str:
     return h.hexdigest()
 
 
-@with_child_logger
 def rename_file(name: str, note_id: int, *, created: str | None = None, logger: LoggerProtocol | None = None) -> str:
     """
     Renomme un fichier en préfixant par la date (créée ou actuelle), en évitant les collisions.
@@ -50,7 +49,6 @@ def rename_file(name: str, note_id: int, *, created: str | None = None, logger: 
         raise BrainOpsError("Rennomage fichier KO", code=ErrCode.FILEERROR, ctx={"note_id": note_id}) from exc
 
 
-@with_child_logger
 def make_relative_link(
     original_path: str | Path,
     filepath: str | Path,
@@ -73,7 +71,6 @@ def make_relative_link(
     raise ValueError(f"Le fichier {orig} est hors du répertoire de base {base}")
 
 
-@with_child_logger
 def lang_detect(file_path: str | Path, *, logger: LoggerProtocol | None = None) -> str:
     """
     Détecte la langue ('fr', 'en', ...), 'na' si trop court (<50 mots) ou indétectable.
@@ -94,7 +91,6 @@ def lang_detect(file_path: str | Path, *, logger: LoggerProtocol | None = None) 
         return "na"
 
 
-@with_child_logger
 def prompt_name_and_model_selection(
     note_id: int,
     key: str,

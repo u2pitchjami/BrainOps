@@ -7,12 +7,10 @@ from brainops.header.header_utils import hash_source
 from brainops.io.extract_section import BrainopsSection, extract_brainops_section
 from brainops.io.note_reader import read_note_full
 from brainops.io.utils import count_words
-from brainops.models.classification import ClassificationResult
 from brainops.models.media import Media
 from brainops.models.metadata import NoteMetadata
 from brainops.models.note import Note
 from brainops.process_import.utils.divers import hash_content, lang_detect
-from brainops.sql.get_linked.db_get_linked_folders_utils import get_category_context_from_folder
 from brainops.sql.notes.db_medias import get_media_by_id
 from brainops.sql.notes.db_update_medias import _ALLOWED_COLUMNS_MEDIAS
 from brainops.sql.notes.db_update_notes import _ALLOWED_COLUMNS
@@ -26,7 +24,6 @@ class NoteContext:
     file_path: str
     src_path: str | None
     base_fp: str | None = None
-    note_classification: ClassificationResult | None = None
     note_metadata: NoteMetadata | None = None
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     media: Media | None = None
@@ -68,9 +65,6 @@ class NoteContext:
 
         if self.note_content and self.note_wc == 0:
             self.note_wc = count_words(self.note_content, logger=self.logger)
-
-        if not self.note_classification:
-            self.note_classification = get_category_context_from_folder(folder_path=self.base_fp, logger=self.logger)
 
         if self.note_db.media_id:
             self.media = get_media_by_id(self.note_db.media_id)
@@ -124,20 +118,6 @@ class NoteContext:
             created = sanitize_created(self.note_metadata.created, logger=self.logger)
             if created != self.note_db.created_at:
                 changes["created_at"] = created
-
-        # ---- Classification
-        if self.note_classification:
-            if self.note_classification.folder_id != self.note_db.folder_id:
-                changes["folder_id"] = self.note_classification.folder_id
-
-            if self.note_classification.category_id != self.note_db.category_id:
-                changes["category_id"] = self.note_classification.category_id
-
-            if self.note_classification.subcategory_id != self.note_db.subcategory_id:
-                changes["subcategory_id"] = self.note_classification.subcategory_id
-
-            if self.note_classification.status != self.note_db.status:
-                changes["status"] = self.note_classification.status
 
         # ---- Contenu
         if self.note_content:

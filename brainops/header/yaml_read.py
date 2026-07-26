@@ -11,11 +11,10 @@ from brainops.io.read_note import read_note_content
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.types import StrOrPath
 from brainops.utils.files import hash_file_content
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 from brainops.utils.normalization import sanitize_yaml_title
 
 
-@with_child_logger
 def test_title(file_path: StrOrPath, *, logger: LoggerProtocol | None = None) -> bool:
     """
     Vérifie/corrige le champ YAML 'title' d'une note.
@@ -59,7 +58,6 @@ def test_title(file_path: StrOrPath, *, logger: LoggerProtocol | None = None) ->
         ) from exc
 
 
-@with_child_logger
 def ensure_status_in_yaml(file_path: str, status: str = "draft", *, logger: LoggerProtocol | None = None) -> None:
     """
     Insère/Met à jour le champ 'status' dans le YAML du fichier.

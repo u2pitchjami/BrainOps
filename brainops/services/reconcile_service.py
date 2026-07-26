@@ -3,21 +3,17 @@
 from collections.abc import Iterable
 import os
 from pathlib import Path
-from typing import cast
 
 from brainops.io.paths import to_abs, to_rel
 from brainops.models.config import get_check_config
-from brainops.models.reconcile import ApplyStats, CheckConfig, DiffSets, FolderRow
-from brainops.process_folders.folders import add_folder
+from brainops.models.reconcile import ApplyStats, CheckConfig, DiffSets
 from brainops.process_notes.new_note import new_note
 from brainops.sql.db_connection import get_db_connection, get_dict_cursor
 from brainops.sql.db_utils import safe_execute_dict
-from brainops.sql.folders.db_folders import delete_folder_from_db
 from brainops.sql.notes.db_delete_note import delete_note_by_path
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def _iter_physical_dirs(base: Path, logger: LoggerProtocol | None = None) -> Iterable[Path]:
     logger = ensure_logger(logger, __name__)
     root = Path(to_abs(base))
@@ -47,7 +43,6 @@ def _is_hidden_path(p: Path) -> bool:
     return any(part.startswith(".") for part in Path(to_abs(p)).parts)
 
 
-@with_child_logger
 def collect_diffs(cfg: CheckConfig, logger: LoggerProtocol | None = None) -> DiffSets:
     logger = ensure_logger(logger, __name__)
     logger.info("=== COLLECTE DES ÉCARTS ===")
@@ -55,52 +50,6 @@ def collect_diffs(cfg: CheckConfig, logger: LoggerProtocol | None = None) -> Dif
 
     conn = get_db_connection(logger=logger)
     try:
-        # --- Folders
-        with get_dict_cursor(conn) as cur:
-            safe_execute_dict(cur, "SELECT id, path, folder_type, category_id, subcategory_id FROM obsidian_folders")
-            db_folders = cast(list[FolderRow], list(cur.fetchall()))
-
-        Path(cfg.base_path)
-        physical_dirs: set[Path] = set(_iter_physical_dirs(cfg.base_path, logger=logger))
-        logger.debug("physical_dirs: %s", physical_dirs)
-        # physical_dirs.add(base_notes)
-        db_folder_paths = {Path(row["path"]) for row in db_folders}
-        logger.debug("db_folder_paths: %s", db_folder_paths)
-        folders_missing_in_db = sorted(str(p) for p in (physical_dirs - db_folder_paths))
-        folders_ghost_in_db = sorted(str(p) for p in (db_folder_paths - physical_dirs))
-        if "." in folders_ghost_in_db:
-            folders_ghost_in_db.remove(".")
-        logger.debug("folders_ghost_in_db: %s", folders_ghost_in_db)
-
-        for p in folders_missing_in_db:
-            if (
-                p == "."
-                or p == "./"
-                or p == ""
-                or p == "/"
-                or p == "\\"
-                or p == "/app"
-                or p == "/app/notes"
-                or p == "/app/audio"
-            ):
-                continue
-            logger.info("📁 + Dossier à ajouter (DB) : %s", p)
-            errors_rows.append(("folder_missing_in_db", p))
-        for p in folders_ghost_in_db:
-            if (
-                p == "."
-                or p == "./"
-                or p == ""
-                or p == "/"
-                or p == "\\"
-                or p == "/app"
-                or p == "/app/notes"
-                or p == "/app/audio"
-            ):
-                continue
-            logger.info("📁 - Dossier à supprimer (DB) : %s", p)
-            errors_rows.append(("folder_ghost_in_db", p))
-
         # --- Notes
         with get_dict_cursor(conn) as cur:
             safe_execute_dict(cur, "SELECT id, file_path FROM obsidian_notes")
@@ -132,8 +81,6 @@ def collect_diffs(cfg: CheckConfig, logger: LoggerProtocol | None = None) -> Dif
             logger.info("✅ - Aucune erreur détectée")
 
         return DiffSets(
-            folders_missing_in_db=folders_missing_in_db,
-            folders_ghost_in_db=folders_ghost_in_db,
             notes_missing_in_db=notes_missing_in_db,
             notes_missing_file=notes_missing_file,
         )
@@ -144,30 +91,9 @@ def collect_diffs(cfg: CheckConfig, logger: LoggerProtocol | None = None) -> Dif
             logger.warning("DB connection close failed", exc_info=True)
 
 
-@with_child_logger
 def apply_diffs(diffs: DiffSets, cfg: CheckConfig, logger: LoggerProtocol | None = None) -> ApplyStats:
     logger = ensure_logger(logger, __name__)
     stats = ApplyStats()
-
-    # --- FOLDERS À AJOUTER ---
-    for folder_path in diffs.folders_missing_in_db:
-        try:
-            folder_id = add_folder(folder_path)
-            stats.added_folders += 1
-            logger.info("✅ Ajout dossier : %s (id=%s)", folder_path, folder_id)
-        except Exception as e:
-            stats.errors += 1
-            logger.warning("❌ Erreur ajout dossier : %s (%s)", folder_path, e)
-
-    # --- FOLDERS À SUPPRIMER ---
-    for folder_path in diffs.folders_ghost_in_db:
-        try:
-            deleted = delete_folder_from_db(folder_path)
-            stats.deleted_folders += deleted
-            logger.info("🗑️ Suppression dossier : %s", folder_path)
-        except Exception as e:
-            stats.errors += 1
-            logger.warning("❌ Erreur suppression dossier : %s (%s)", folder_path, e)
 
     # --- NOTES À AJOUTER ---
     for note_path in diffs.notes_missing_in_db:
@@ -191,8 +117,6 @@ def apply_diffs(diffs: DiffSets, cfg: CheckConfig, logger: LoggerProtocol | None
 
     # --- Résumé ---
     logger.info("=== Résumé des actions ===")
-    logger.info("🆕 Dossiers ajoutés : %d", stats.added_folders)
-    logger.info("🗑️  Dossiers supprimés : %d", stats.deleted_folders)
     logger.info("🆕 Notes ajoutées : %d", stats.added_notes)
     logger.info("🗑️  Notes supprimées : %d", stats.deleted_notes)
     logger.info("⚠️  Erreurs : %d", stats.errors)
@@ -200,7 +124,6 @@ def apply_diffs(diffs: DiffSets, cfg: CheckConfig, logger: LoggerProtocol | None
     return stats
 
 
-@with_child_logger
 def reconcile(scope: str = "all", apply: bool = False, logger: LoggerProtocol | None = None) -> None:
     """
     Point d'entrée principal.

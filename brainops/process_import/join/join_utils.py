@@ -7,10 +7,9 @@ from __future__ import annotations
 import yaml
 
 from brainops.models.metadata import NoteMetadata
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def join_metadata_to_note(body: str, metadata: NoteMetadata, *, logger: LoggerProtocol | None = None) -> str:
     """
     Remplace complètement l'entête YAML par le contenu de NoteMetadata.
@@ -39,7 +38,6 @@ def join_metadata_to_note(body: str, metadata: NoteMetadata, *, logger: LoggerPr
         return " "
 
 
-@with_child_logger
 def join_yaml_and_body(
     header_lines: NoteMetadata,
     body: str,

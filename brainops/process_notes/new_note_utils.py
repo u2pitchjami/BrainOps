@@ -17,7 +17,6 @@ from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.utils.config import DUPLICATES_LOGS, DUPLICATES_PATH
 from brainops.utils.logger import (
     LoggerProtocol,
-    with_child_logger,
 )
 
 # ---------- helpers FS ---------------------------------------------------------
@@ -32,7 +31,6 @@ def _ensure_duplicates_dir() -> None:
     Path(DUPLICATES_LOGS).parent.mkdir(parents=True, exist_ok=True)
 
 
-@with_child_logger
 def _handle_duplicate_note(file_path: Path, match_info: list[dict[str, Any]], *, logger: LoggerProtocol) -> Path:
     """
     Déplace une note vers DUPLICATES_PATH et journalise les infos.

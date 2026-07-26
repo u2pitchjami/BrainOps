@@ -27,18 +27,11 @@ def build_note_shell_from_audio_manifest(
 
     safe_title = title.strip() if title else file_path.stem
 
-    # folder_id = is_folder_exist(folderpath=str(file_path.parent), logger=logger)
-    # if not folder_id:
-    #     folder_id = add_folder(folder_path=str(file_path.parent), logger=logger)
-
     return Note(
         id=None,
         parent_id=None,
         title=safe_title,
         file_path=file_path.as_posix(),
-        folder_id=0,
-        category_id=None,
-        subcategory_id=None,
         status="processing",
         summary=None,
         source=source_url,

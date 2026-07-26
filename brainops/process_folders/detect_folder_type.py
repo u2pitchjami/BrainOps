@@ -14,8 +14,10 @@ def detect_folder_type(path: str) -> FolderType:
     lower = path.lower()
     if "z_storage/" in lower:
         return FolderType.STORAGE
-    if "personnal/" in lower:
-        return FolderType.PERSONNAL
+    if "tutos/" in lower:
+        return FolderType.TUTORIAL
+    if "personal/" in lower:
+        return FolderType.PERSONAL
     if "projects/" in lower:
         return FolderType.PROJECT
     if "duplicates/" in lower:

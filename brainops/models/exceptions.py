@@ -14,6 +14,7 @@ class ErrCode(StrEnum):
     UNEXPECTED = "UNEXPECTED"
     NOFILE = "NOFILE"
     FILEERROR = "FILEERROR"
+    VALIDATION = "VALIDATION"
 
 
 class BrainOpsError(RuntimeError):

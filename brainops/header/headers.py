@@ -6,21 +6,15 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from brainops.header.get_tags_and_summary import (
-    get_summary_from_ollama,
-    get_tags_from_ollama,
-)
-from brainops.models.classification import ClassificationResult
+from brainops.header.get_tags_and_summary import get_tags_from_ollama
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.metadata import NoteMetadata
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def make_properties(
     content: str,
     meta_yaml: NoteMetadata,
-    classification: ClassificationResult,
     note_id: int,
     status: str,
     *,
@@ -41,18 +35,15 @@ def make_properties(
         logger.debug(f"meta_yaml : {meta_yaml}")
         logger.debug(f"analysis_profile : {meta_yaml.analysis_profile}")
         # 2) Appels IA (sur body uniquement)
-        logger.debug("[make_properties] IA: tags + summary")
+        # logger.debug("[make_properties] IA: tags + summary")
         tags = get_tags_from_ollama(content, note_id, logger=logger) or []
-        summary = (get_summary_from_ollama(content, note_id, logger=logger) or "").strip()
+        # summary = (get_summary_from_ollama(content, note_id, logger=logger) or "").strip()
 
         # 5) Construire l’objet NoteMetadata final (fusion YAML existant + ajouts)
         meta_final = NoteMetadata.merge(
             NoteMetadata(  # priorité aux nouvelles infos
-                tags=tags,
-                summary=summary,
                 status=status,
-                category=classification.category_name,
-                subcategory=classification.subcategory_name or "",
+                tags=tags,
                 last_modified=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 doc_type=meta_yaml.doc_type,
                 # analysis_profile=meta_yaml.analysis_profile

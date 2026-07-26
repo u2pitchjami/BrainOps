@@ -5,14 +5,15 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import requests
 
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.process_import.utils.gpu_guard import get_ollama_base_url
-from brainops.utils.config import MODEL_EMBEDDINGS, OLLAMA_TIMEOUT
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.config import MODEL_EMBEDDINGS, OLLAMA_EMBEDDINGS_ENDPOINT, OLLAMA_TIMEOUT
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
 class OllamaError(Exception):
@@ -21,7 +22,6 @@ class OllamaError(Exception):
     """
 
 
-@with_child_logger
 def call_ollama_with_retry(
     prompt: str,
     model_ollama: str,
@@ -63,7 +63,52 @@ def call_ollama_with_retry(
     raise BrainOpsError("KO récup ou création subcatg", code=ErrCode.DB, ctx={"name": "call_ollama_with_retry"})
 
 
-@with_child_logger
+def call_ollama_embedding_with_retry(
+    prompt: str,
+    model_ollama: str,
+    retries: int = 5,
+    delay: int = 10,
+    *,
+    logger: LoggerProtocol | None = None,
+) -> list[float]:
+    """
+    Appelle un modèle d'embedding Ollama avec gestion des tentatives.
+    """
+    logger = ensure_logger(logger, __name__)
+
+    last_error: Exception | None = None
+    base_url = get_ollama_base_url(model_name=model_ollama)
+    for attempt in range(1, retries + 1):
+        try:
+            return get_embedding(
+                endpoint=f"{base_url}{OLLAMA_EMBEDDINGS_ENDPOINT}",
+                prompt=prompt,
+                model_ollama=model_ollama,
+                logger=logger,
+            )
+        except BrainOpsError as exc:
+            last_error = exc
+
+            logger.warning(
+                "Échec embedding Ollama : modèle=%s tentative=%d/%d",
+                model_ollama,
+                attempt,
+                retries,
+            )
+
+            if attempt < retries:
+                time.sleep(delay)
+
+    raise BrainOpsError(
+        "Échec définitif de l'embedding Ollama.",
+        code=ErrCode.OLLAMA,
+        ctx={
+            "model": model_ollama,
+            "retries": retries,
+        },
+    ) from last_error
+
+
 def ollama_generate(endpoint: str, prompt: str, model_ollama: str, *, logger: LoggerProtocol | None = None) -> str:
     """
     Appel texte → texte sur le endpoint GENERATE (stream).
@@ -124,7 +169,6 @@ def ollama_generate(endpoint: str, prompt: str, model_ollama: str, *, logger: Lo
     return text
 
 
-@with_child_logger
 def get_embedding(
     endpoint: str, prompt: str, model_ollama: str, *, logger: LoggerProtocol | None = None
 ) -> list[float]:

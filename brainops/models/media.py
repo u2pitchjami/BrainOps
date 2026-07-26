@@ -7,8 +7,27 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 import json
 from typing import Any
+
+
+class BlockPurpose(StrEnum):
+    EMBEDDING = "embedding"
+    SUMMARY = "summary"
+    CLASSIFICATION = "classification"
+    TRANSCRIPTION = "transcription"
+
+
+@dataclass(frozen=True, slots=True)
+class TempBlockRef:
+    block_id: int
+
+
+@dataclass(slots=True)
+class MediaContext:
+    media_id: int
+    blocks: list[TempBlockRef]
 
 
 @dataclass(slots=True, kw_only=True)

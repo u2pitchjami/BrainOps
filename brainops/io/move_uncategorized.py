@@ -12,16 +12,14 @@ import shutil
 from brainops.io.paths import to_abs
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.process_folders.folders import ensure_folder_exists
-from brainops.sql.get_linked.db_get_linked_folders_utils import get_folder_id
 from brainops.sql.notes.db_update_notes import update_obsidian_note
 from brainops.utils.config import (
     UNCATEGORIZED_JSON,
     UNCATEGORIZED_PATH,
 )
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def handle_uncategorized(
     note_id: int,
     filepath: str | Path,
@@ -42,9 +40,8 @@ def handle_uncategorized(
         shutil.move(Path(to_abs(src)).as_posix(), to_abs(dest).as_posix())
         logger.warning("[WARNING] 🚨 Note déplacée vers 'uncategorized' : %s", dest.as_posix())
 
-        # MAJ DB avec le vrai folder_id de UNCATEGORIZED_PATH
-        unc_folder_id = get_folder_id(Path(UNCATEGORIZED_PATH).as_posix(), logger=logger)
-        updates = {"folder_id": unc_folder_id, "file_path": dest.as_posix()}
+        # MAJ DB
+        updates = {"file_path": dest.as_posix()}
         update_obsidian_note(note_id, updates, logger=logger)
 
         # Journal JSON

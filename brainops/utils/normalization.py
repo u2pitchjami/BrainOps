@@ -11,7 +11,7 @@ import unicodedata
 
 from brainops.io.paths import canonical_rel, to_abs
 from brainops.models.exceptions import BrainOpsError, ErrCode
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
 def normalize_full_path(path: str | bytes) -> str:
@@ -23,7 +23,6 @@ def normalize_full_path(path: str | bytes) -> str:
     return canonical_rel(path)
 
 
-@with_child_logger
 def sanitize_created(created: object, *, logger: LoggerProtocol | None = None) -> str:
     """
     Normalise une date en 'YYYY-MM-DD'.
@@ -72,7 +71,6 @@ def sanitize_yaml_title(title: str | None) -> str:
         ) from exc
 
 
-@with_child_logger
 def sanitize_filename(filename: str, *, logger: LoggerProtocol | None = None) -> str:
     """
     Nettoie un nom de fichier (compatible Windows/Unix).

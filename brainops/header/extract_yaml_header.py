@@ -6,10 +6,9 @@ from __future__ import annotations
 
 from brainops.io.read_note import read_note_content
 from brainops.models.exceptions import BrainOpsError, ErrCode
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def extract_yaml_header(filepath: str, *, logger: LoggerProtocol | None = None) -> tuple[list[str], str]:
     """
     Sépare le fichier en entête YAML (en lignes) et contenu (corps de note).

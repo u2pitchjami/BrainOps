@@ -13,7 +13,7 @@ from pymysql.cursors import DictCursor
 from brainops.models.cursor_protocol import DictCursorProtocol, TupleCursorProtocol
 from brainops.models.db_config import DB_CONFIG
 from brainops.models.exceptions import BrainOpsError, ErrCode
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
 def get_dict_cursor(conn: Connection) -> DictCursorProtocol:
@@ -24,7 +24,6 @@ def get_tuple_cursor(conn: Connection) -> TupleCursorProtocol:
     return cast(TupleCursorProtocol, conn.cursor())
 
 
-@with_child_logger
 def get_db_connection(
     logger: LoggerProtocol | None = None,
 ) -> Connection:
@@ -40,7 +39,6 @@ def get_db_connection(
 
 
 @contextmanager
-@with_child_logger
 def db_conn(*, autocommit: bool = False, logger: LoggerProtocol | None = None) -> Iterator[Connection]:
     """
     Ouvre une connexion, gère commit/rollback/close en 1 seul endroit.

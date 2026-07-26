@@ -12,17 +12,14 @@ from brainops.models.note import DocumentSemanticType, Note
 from brainops.process_notes.new_note_utils import (
     _normalize_abs_posix,
 )
-from brainops.sql.get_linked.db_get_linked_folders_utils import get_folder_id
 from brainops.sql.notes.db_upsert_note import upsert_note_from_model
 from brainops.utils.logger import (
     LoggerProtocol,
     ensure_logger,
-    with_child_logger,
 )
 from brainops.utils.normalization import sanitize_yaml_title
 
 
-@with_child_logger
 def new_note(file_path: str | Path, logger: LoggerProtocol | None = None) -> int:
     """
     Crée/Met à jour une note à partir d'un fichier du vault.
@@ -34,9 +31,6 @@ def new_note(file_path: str | Path, logger: LoggerProtocol | None = None) -> int
     """
     logger = ensure_logger(logger, __name__)
     fp = _normalize_abs_posix(file_path)
-    base_folder = fp.parent
-    folder_id = get_folder_id(str(base_folder), logger=logger)
-    logger.debug(f"[NEW_NOTE] folder_id : {folder_id}")
     logger.debug(f"[NEW_NOTE] fp : {type(fp)} : {fp}")
     try:
         # ---- construire le modèle Note ---------------------------------------
@@ -45,9 +39,6 @@ def new_note(file_path: str | Path, logger: LoggerProtocol | None = None) -> int
         note = Note(
             title=title_sani,
             file_path=fp.as_posix(),
-            folder_id=folder_id,
-            category_id=None,
-            subcategory_id=None,
             status="draft",
             summary=None,
             source=None,

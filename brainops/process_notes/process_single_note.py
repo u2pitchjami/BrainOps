@@ -11,23 +11,21 @@ from brainops.io.paths import to_abs
 from brainops.models.event import QueuedNoteContext
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.note_context import NoteContext
+from brainops.process_import.media.import_media import import_media
 from brainops.process_import.normal.import_normal import import_normal
+from brainops.process_import.normal.import_normal_note import import_normal_note
 from brainops.process_import.utils.paths import path_is_inside
 from brainops.process_notes.update_note import (
-    sync_classification_to_metadata,
     update_note_context,
 )
-from brainops.process_notes.utils import check_if_tags
-from brainops.process_regen.regen_hub import regen_hub
-from brainops.utils.config import IMPORTS_PATH, UNCATEGORIZED_PATH, Z_STORAGE_PATH
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.config import DUPLICATES_PATH, ERRORED_PATH, IMPORTS_PATH, UNCATEGORIZED_PATH, Z_STORAGE_PATH
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 # ========================================================
 # HUB PRINCIPAL
 # ========================================================
 
 
-@with_child_logger
 def process_single_note(ctx: NoteContext, queued_ctx: QueuedNoteContext, logger: LoggerProtocol | None = None) -> None:
     """
     Traite une note selon son emplacement et l'événement détecté.
@@ -81,9 +79,9 @@ def handle_move(ctx: NoteContext, queued_ctx: QueuedNoteContext, logger: LoggerP
         return handle_move_within_storage(ctx, logger)
 
     logger.info("[MOVED] 🚨 Déplacement inconnu : %s → %s", src_path, filepath)
-    tags = check_if_tags(filepath, ctx.note_db.id, ctx, logger=logger)
-    if tags:
-        logger.info("[METADATA] ✈️ (id=%s) : Tags générés", ctx.note_db.id)
+    # tags = check_if_tags(filepath, ctx.note_db.id, ctx, logger=logger)
+    # if tags:
+    #     logger.info("[METADATA] ✈️ (id=%s) : Tags générés", ctx.note_db.id)
     update_note_context(ctx)
     return
 
@@ -100,11 +98,8 @@ def handle_move_uncategorized_to_storage(
                 code=ErrCode.CONTEXT,
                 ctx={"step": "handle_move_uncategorized_to_storage"},
             )
-        # ready = guard_gpu_or_requeue(queued_ctx)
-        # if not ready:
-        # return
 
-        importok = import_normal(ctx.file_path, ctx.note_db.id, ctx=ctx, force_categ=True)
+        importok = import_normal(ctx.file_path, ctx.note_db.id, ctx=ctx)
         if not importok:
             logger.warning("[WARNING] ❌ (id=%s) : Echec Import", ctx.note_db.id)
     except BrainOpsError as exc:
@@ -121,10 +116,14 @@ def handle_move_to_imports(ctx: NoteContext, queued_ctx: QueuedNoteContext, logg
                 ctx={"step": "handle_move_to_imports"},
             )
         logger.info("[MOVED] ✈️ (id=%s) → imports : Import", ctx.note_db.id)
-        # ready = guard_gpu_or_requeue(queued_ctx)
-        # if not ready:
-        # return
-        importok = import_normal(ctx.file_path, ctx.note_db.id, ctx=ctx, force_categ=False)
+
+        if ctx.media and ctx.media.id:
+            logger.info("[MOVED] ✈️ (id=%s) → imports : Media détecté, pas d'import", ctx.note_db.id)
+            importok = import_media(ctx.file_path, ctx.note_db.id, ctx=ctx)
+        else:
+            logger.info("[MOVED] ✈️ (id=%s) → imports : Pas de media, import normal", ctx.note_db.id)
+            importok = import_normal(ctx.file_path, ctx.note_db.id, ctx=ctx)
+
         if not importok:
             logger.warning("[WARNING] ❌ (id=%s) : Echec Import", ctx.note_db.id)
     except BrainOpsError as exc:
@@ -135,26 +134,16 @@ def handle_move_within_storage(ctx: NoteContext, logger: LoggerProtocol) -> None
     """Cas : déplacement interne dans STORAGE"""
     logger.info("[MOVED] ✈️ (id=%s) Déplacement interne storage", ctx.note_db.id)
 
-    if not ctx.note_classification or not ctx.note_db.id:
-        logger.warning("[WARN] ✈️ (id=%s) : Catégories non détectées", ctx.note_db.id)
+    if not ctx.note_db.id:
+        logger.warning("[WARN] ✈️ (id=%s) : Ctx absent", ctx.note_db.id)
         return
 
     logger.info(
         "[MOVED] (id=%s) %s/%s → %s/%s",
         ctx.note_db.id,
-        ctx.note_db.cat_name,
-        ctx.note_db.sub_cat_name,
-        ctx.note_classification.category_name,
-        ctx.note_classification.subcategory_name,
     )
 
-    sync_categ = sync_classification_to_metadata(ctx.note_db.id, ctx=ctx, logger=logger)
-    if sync_categ:
-        logger.info("[METADATA] ✈️ (id=%s) : Entête mise à jour", ctx.note_db.id)
-
     update_note_context(ctx)
-    # if ctx.note_db.status == "synthesis":
-    #    check_synthesis_and_trigger_archive(ctx.note_db.id, ctx.file_path, ctx, logger=logger)
 
 
 # ========================================================
@@ -169,6 +158,17 @@ def handle_create_or_modify(ctx: NoteContext, queued_ctx: QueuedNoteContext, log
         logger.warning("🚨 Fichier inexistant : %s", filepath)
         return
 
+    if (
+        path_is_inside(ERRORED_PATH, base_folder)
+        or path_is_inside(DUPLICATES_PATH, base_folder)
+        or path_is_inside(UNCATEGORIZED_PATH, base_folder)
+    ):
+        update_note_context(ctx)
+        if ctx.note_db.status == "synthesis":
+            if not ctx.note_db.id:
+                logger.warning("🚨 (id=%s) Note sans ID", ctx.note_db.id)
+        return
+
     if path_is_inside(IMPORTS_PATH, base_folder):
         return handle_created_in_imports(ctx, queued_ctx, logger)
 
@@ -176,12 +176,9 @@ def handle_create_or_modify(ctx: NoteContext, queued_ctx: QueuedNoteContext, log
         return handle_updated_in_storage(ctx, queued_ctx, logger)
 
     logger.info("🚨 (id=%s) Aucune règle identifiée", ctx.note_db.id)
-    update_note_context(ctx)
-    if ctx.note_db.status == "synthesis":
-        if not ctx.note_db.id:
-            logger.warning("🚨 (id=%s) Note sans ID", ctx.note_db.id)
-        # else:
-        # check_synthesis_and_trigger_archive(ctx.note_db.id, filepath, ctx, logger=logger)
+    return handle_note(ctx, queued_ctx, logger)
+    # else:
+    # check_synthesis_and_trigger_archive(ctx.note_db.id, filepath, ctx, logger=logger)
 
 
 def handle_created_in_imports(ctx: NoteContext, queued_ctx: QueuedNoteContext, logger: LoggerProtocol) -> None:
@@ -197,10 +194,14 @@ def handle_created_in_imports(ctx: NoteContext, queued_ctx: QueuedNoteContext, l
             )
 
         logger.info("[CREATED] ✨ (id=%s) : Import", ctx.note_db.id)
-        # ready = guard_gpu_or_requeue(queued_ctx)
-        # if not ready:
-        # return
-        importok = import_normal(ctx.file_path, ctx.note_db.id, ctx)
+
+        if ctx.media and ctx.media.id:
+            logger.info("[MOVED] ✈️ (id=%s) → imports : Media détecté, import media", ctx.note_db.id)
+            importok = import_media(ctx.file_path, ctx.note_db.id, ctx=ctx)
+        else:
+            logger.info("[MOVED] ✈️ (id=%s) → imports : Pas de media, import normal", ctx.note_db.id)
+            importok = import_normal(ctx.file_path, ctx.note_db.id, ctx=ctx)
+
         if not importok:
             logger.warning("[WARNING] ❌ (id=%s) : Echec Import", ctx.note_db.id)
     except BrainOpsError as exc:
@@ -217,35 +218,42 @@ def handle_updated_in_storage(ctx: NoteContext, queued_ctx: QueuedNoteContext, l
             code=ErrCode.CONTEXT,
             ctx={"step": "handle_move_uncategorized_in_imports"},
         )
-    regen = regen_hub(filepath=ctx.file_path, note_id=ctx.note_db.id, ctx=ctx, queued_ctx=queued_ctx)
-    if regen:
-        logger.info("[UPDATED] ✨ (id=%s) : Régénération", ctx.note_db.id)
-        return
+    trigger = should_trigger_wc(ctx, threshold=100)
+    if trigger:
+        logger.info("[TRIGGER] ✨ (id=%s) : Trigger process", ctx.note_db.id)
+        importok = import_normal(ctx.file_path, ctx.note_db.id, ctx)
+        if not importok:
+            logger.warning("[WARNING] ❌ (id=%s) : Echec Import", ctx.note_db.id)
+    else:
+        logger.info("[INFO] ✨ (id=%s) : Pas de trigger process", ctx.note_db.id)
+
+    # regen = regen_hub(filepath=ctx.file_path, note_id=ctx.note_db.id, ctx=ctx, queued_ctx=queued_ctx)
+    # if regen:
+    #     logger.info("[UPDATED] ✨ (id=%s) : Régénération", ctx.note_db.id)
+    #     return
     update_note_context(ctx)
-    # if ctx.note_db.parent_id and ctx.note_db.status == "synthesis":
-    #     note_parent = get_note_by_id(ctx.note_db.parent_id, logger=logger)
-    #     if note_parent and note_parent.id:
-    #         ctx_parent = NoteContext(note_parent, file_path=note_parent.file_path, src_path=None, logger=logger)
-    #     if ctx_parent.note_metadata and ctx.note_metadata:
-    #         ctx_parent.note_metadata.title = ctx.note_metadata.title
-    #         ctx_parent.note_metadata.source = ctx.note_metadata.source
-    #         ctx_parent.note_metadata.project = ctx.note_metadata.project
-    #         ctx_parent.note_metadata.author = ctx.note_metadata.author
-    #         if ctx.note_db.media_id and ctx_parent.note_db.media_id:
-    #             ctx_parent.note_db.media_id = ctx.note_db.media_id
-    #             ctx_parent.note_metadata.doc_type = ctx.note_metadata.doc_type
-    #             ctx_parent.note_metadata.provider = ctx.note_metadata.provider
-    #             ctx_parent.note_metadata.media_source = ctx.note_metadata.media_source
-    #     if ctx_parent.note_classification and ctx.note_classification:
-    #         ctx_parent.note_classification.category_id = ctx.note_classification.category_id
-    #         ctx_parent.note_classification.subcategory_id = ctx.note_classification.subcategory_id
-    #     if ctx_parent.note_content and ctx_parent.note_metadata:
-    #         write_metadata_to_note(
-    #             filepath=ctx_parent.note_db.file_path,
-    #             content=ctx_parent.note_content,
-    #             metadata=ctx_parent.note_metadata,
-    #             logger=logger,
-    #         )
+
+
+def handle_note(ctx: NoteContext, queued_ctx: QueuedNoteContext, logger: LoggerProtocol) -> None:
+    """
+    Modification dans projects, tutos, etc...
+    """
+    if not ctx.note_db.id:
+        raise BrainOpsError(
+            "[NOTE] ❌ Données context KO",
+            code=ErrCode.CONTEXT,
+            ctx={"step": "handle_move_uncategorized_in_imports"},
+        )
+    trigger = should_trigger_wc(ctx, threshold=100)
+    if trigger or ctx.note_db.status != "note":
+        logger.info("[TRIGGER] ✨ (id=%s) : Trigger process", ctx.note_db.id)
+        importok = import_normal_note(ctx.file_path, ctx.note_db.id, ctx)
+        if not importok:
+            logger.warning("[WARNING] ❌ (id=%s) : Echec Import", ctx.note_db.id)
+    else:
+        logger.info("[INFO] ✨ (id=%s) : Pas de trigger process", ctx.note_db.id)
+
+    update_note_context(ctx)
 
 
 # ========================================================
@@ -270,3 +278,36 @@ def _handle_exception(ctx: NoteContext, exc: BrainOpsError, logger: LoggerProtoc
     exc.with_context({"step": "process_single_note", "filepath": ctx.file_path, "note_id": ctx.note_db.id})
     logger.exception("[%s] %s | ctx=%r", exc.code.name, str(exc), exc.ctx)
     handle_errored_file(ctx.note_db.id, ctx.file_path, exc, logger=logger)
+
+
+def should_trigger_wc(
+    ctx: NoteContext,
+    threshold: int = 100,
+) -> bool:
+    """
+    Détermine si une note doit être retraitée en fonction de l'écart de word_count.
+
+    Retourne (trigger, status, parent_id).
+    """
+    trigger = False
+    actual_wc = ctx.note_db.word_count
+    new_word_count: int = ctx.note_wc
+
+    try:
+        word_diff = abs((actual_wc or 0) - new_word_count)
+        trigger_wc = word_diff > threshold
+
+        if trigger_wc:
+            trigger = True
+
+    except Exception as exc:
+        raise BrainOpsError(
+            "[should_trigger_wc] ❌ Erreur dans la recherche de trigger",
+            code=ErrCode.METADATA,
+            ctx={
+                "step": "should_trigger_wc",
+                "note_id": ctx.note_db.id,
+            },
+        ) from exc
+
+    return trigger

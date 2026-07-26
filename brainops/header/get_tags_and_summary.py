@@ -12,7 +12,7 @@ from brainops.ollama.ollama_call import OllamaError, call_ollama_with_retry
 from brainops.ollama.prompts import PROMPTS
 from brainops.process_import.utils.divers import prompt_name_and_model_selection
 from brainops.utils.config import MODEL_SUMMARY
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 _JSON_OBJECT_RE = re.compile(r"\{.*?\}", re.DOTALL)
 _JSON_ARRAY_RE = re.compile(r"\[.*?\]", re.DOTALL)
@@ -67,7 +67,6 @@ def _parse_jsonish_tags(response: str) -> list[str]:
     return []
 
 
-@with_child_logger
 def get_tags_from_ollama(content: str, note_id: int, *, logger: LoggerProtocol | None = None) -> list[str]:
     """
     Interroge Ollama pour générer des tags à partir du contenu.
@@ -118,7 +117,6 @@ def get_tags_from_ollama(content: str, note_id: int, *, logger: LoggerProtocol |
         return []
 
 
-@with_child_logger
 def get_summary_from_ollama(content: str, note_id: int, *, logger: LoggerProtocol | None = None) -> str:
     """
     Génère un résumé automatique avec Ollama.

@@ -8,10 +8,9 @@ from brainops.io.note_reader import read_note_body
 from brainops.io.paths import to_abs
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.types import StrOrPath
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def count_words(
     content: str | None,
     filepath: StrOrPath | None = None,

@@ -8,10 +8,9 @@ from brainops.header.get_tags_and_summary import get_tags_from_ollama
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.note_context import NoteContext
 from brainops.sql.notes.db_update_notes import update_obsidian_tags
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def check_if_tags(
     filepath: str,
     note_id: int,
@@ -33,30 +32,15 @@ def check_if_tags(
     )
     tags = []
     try:
-        if not ctx or not ctx.note_classification or not ctx.note_content:
+        if not ctx or not ctx.note_content:
             raise BrainOpsError(
                 "[REGEN] ❌ Données context KO Regen annulé",
                 code=ErrCode.CONTEXT,
                 ctx={"step": "go_header", "note_id": note_id},
             )
-        if ctx.note_classification.status in (
-            "synthesis",
-            "archive",
-            "duplicate",
-            "error",
-            "draft",
-            "uncategorized",
-            "templates",
-            "technical",
-        ):
-            return False
 
         if ctx.note_wc > 100:
             tags = get_tags_from_ollama(content=ctx.note_content, note_id=note_id, logger=logger)
-        if ctx.note_classification.category_name not in tags:
-            tags.append(ctx.note_classification.category_name)
-        if ctx.note_classification.subcategory_name and ctx.note_classification.subcategory_name not in tags:
-            tags.append(ctx.note_classification.subcategory_name)
 
         if tags:
             logger.debug("[DEBUG] Tags à ajouter : %s", tags)

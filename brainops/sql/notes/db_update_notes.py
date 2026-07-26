@@ -9,16 +9,13 @@ from typing import Any
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.sql.db_connection import get_db_connection, get_dict_cursor
 from brainops.sql.db_utils import safe_execute_dict
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 # Colonnes autorisées à la mise à jour
 _ALLOWED_COLUMNS: set[str] = {
     "parent_id",
     "title",
     "file_path",
-    "folder_id",
-    "category_id",
-    "subcategory_id",
     "status",
     "summary",
     "source",
@@ -36,7 +33,6 @@ _ALLOWED_COLUMNS: set[str] = {
 }
 
 
-@with_child_logger
 def update_obsidian_note(
     note_id: int,
     updates: dict[str, Any],
@@ -86,8 +82,7 @@ def update_obsidian_note(
     return True
 
 
-@with_child_logger
-def update_obsidian_tags(note_id: int, tags: list[str], logger: LoggerProtocol | None = None) -> None:
+def update_obsidian_tags(note_id: int, tags: list[str], logger: LoggerProtocol | None = None) -> bool:
     """
     update_obsidian_tags _summary_
 
@@ -124,3 +119,4 @@ def update_obsidian_tags(note_id: int, tags: list[str], logger: LoggerProtocol |
             # Fermer le curseur et la connexion
             cur.close()
             conn.close()
+    return True

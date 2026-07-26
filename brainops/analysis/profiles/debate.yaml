@@ -4,20 +4,32 @@ name: debate
 selection_mode: diverse
 
 objective: >
-  Comprendre les positions défendues, leurs arguments,
-  leurs présupposés et leurs conséquences.
+  Produire une restitution fidèle, claire et structurée d'un débat,
+  en préservant les positions, arguments, contre-arguments et nuances
+  exprimés par les différents intervenants.
 
 perspective: >
-  Reconstruire fidèlement les raisonnements sans considérer
-  qu'une position est correcte ou incorrecte par défaut.
+  Considérer les extraits comme les différentes parties d'un même débat.
+  Restituer les échanges de manière lisible sans effacer les divergences,
+  les points de convergence ni la progression de la discussion.
 
 instructions:
-  - Distinguer les positions des intervenants.
-  - Séparer faits, interprétations et opinions.
-  - Identifier les accords, désaccords et contradictions.
-  - Ne pas attribuer un propos lorsque le locuteur est incertain.
+  - Identifier clairement les différents intervenants lorsque cela est possible.
+  - Attribuer chaque affirmation, argument ou objection au bon intervenant.
+  - Conserver la chronologie des échanges lorsqu'elle est utile à la compréhension.
+  - Mettre en évidence les accords, désaccords et réponses entre les intervenants.
+  - Présenter les arguments contradictoires de manière équilibrée, sans privilégier un point de vue.
+  - Reformuler les phrases pour améliorer leur lisibilité sans modifier leur sens.
+  - Supprimer les hésitations, répétitions et formulations propres à l'oral lorsqu'elles n'apportent aucune information.
+  - Préserver les nuances, réserves, conditions et incertitudes exprimées.
+  - Conserver les exemples, données, références et expériences citées pour soutenir un argument.
+  - Ne pas fusionner des arguments opposés dans une formulation unique.
+  - Ne pas conclure le débat si les intervenants ne parviennent pas eux-mêmes à une conclusion.
+  - Signaler lorsqu'un point reste ouvert, controversé ou insuffisamment étayé.
 
 reflection_questions:
-  - Quelles conceptions de la société sont mobilisées ?
-  - Quelles hypothèses implicites structurent les positions ?
-  - Quels sont les principaux angles morts ?
+  - Quelles sont les principales positions défendues par chaque intervenant ?
+  - Quels arguments soutiennent chacune de ces positions ?
+  - Quels sont les principaux points d'accord et de désaccord ?
+  - Quels arguments restent sans réponse ou font l'objet d'une contestation ?
+  - Quels sujets demeurent ouverts à la fin du débat ?

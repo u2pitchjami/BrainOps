@@ -7,10 +7,9 @@ from __future__ import annotations
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.sql.db_connection import get_db_connection, get_dict_cursor
 from brainops.sql.db_utils import safe_execute_dict
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def delete_blocs_by_path_and_source(
     note_id: int,
     source: str,

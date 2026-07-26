@@ -129,6 +129,7 @@ MODEL_EN: str = get_str("MODEL_EN", "llama3.1:8b-instruct-q8_0")
 MODEL_GET_TYPE: str = get_str("MODEL_GET_TYPE", "mistral:latest")
 MODEL_EMBEDDINGS: str = get_str("MODEL_EMBEDDINGS", "nomic-embed-text:latest")
 MODEL_SUMMARY: str = get_str("MODEL_SUMMARY", "cognitivetech/obook_summary:latest")
+OLLAMA_EMBEDDINGS_ENDPOINT: str = get_str("OLLAMA_EMBEDDINGS_ENDPOINT", "/api/embeddings")
 
 # DB
 DB_HOST = str(get_required("DB_HOST"))

@@ -6,37 +6,37 @@ from __future__ import annotations
 
 import json
 
+from brainops.embeddings.transcript_indexer import compute_text_hash, normalize_embedding_text
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.ollama.ollama_call import OllamaError, call_ollama_with_retry
 from brainops.ollama.prompts import PROMPTS
-from brainops.process_import.split.split_main import smart_split_for_embeddings, split_large_note_by_titles_and_words
-from brainops.process_import.split.split_qa_paragraphs import split_qa_paragraphs
+from brainops.process_import.split.split_main import (
+    SplitMethod,
+    split_note_content,
+)
 from brainops.process_import.split.split_utils import (
     ensure_titles_in_blocks,
-    split_large_note,
-    split_large_note_by_titles,
 )
-from brainops.process_import.split.split_windows_by_paragraphs import split_windows_by_paragraphs
 from brainops.sql.temp_blocs.db_error_temp_blocs import mark_bloc_as_error
 from brainops.sql.temp_blocs.db_temp_blocs import (
+    ExistingTempBlock,
     get_existing_bloc,
     insert_bloc,
     update_bloc_response,
 )
 from brainops.utils.config import MODEL_LARGE_NOTE
 from brainops.utils.files import maybe_clean
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 from brainops.utils.normalization import clean_fake_code_blocks
 
 
-@with_child_logger
 def process_large_note(
     note_id: int,
     content: str,
     entry_type: str | None = None,
     max_chars: int = 3800,
     max_tokens: int = 1500,
-    split_method: str = "auto",
+    split_method: SplitMethod = "auto",
     write_file: bool = True,
     send_to_model: bool = True,
     model_name: str | None = None,
@@ -56,49 +56,40 @@ def process_large_note(
 
     try:
         # --- split
-        if split_method == "auto":
-            blocks = smart_split_for_embeddings(content, max_tokens, max_chars, logger)
-        elif split_method == "titles_and_words":
-            blocks = split_large_note_by_titles_and_words(
-                content=content, max_tokens=max_tokens, max_chars=max_chars, logger=logger
-            )
-        elif split_method == "titles":
-            blocks = split_large_note_by_titles(content)
-        elif split_method == "words":
-            blocks = split_large_note(content=content, max_tokens=max_tokens, max_chars=max_chars)
-        elif split_method == "qa_paragraphs":
-            blocks = split_qa_paragraphs(text=content, logger=logger)
-        elif split_method == "split_windows_by_paragraphs":
-            blocks = split_windows_by_paragraphs(
-                text=content, max_tokens=max_tokens, max_chars=max_chars, logger=logger
-            )
-        else:
-            logger.error("[ERROR] Méthode de split inconnue : %s", split_method)
-            raise BrainOpsError("Méthode de split inconnue", code=ErrCode.UNEXPECTED, ctx={"note_id": note_id})
-
-        logger.info("[INFO] Note découpée en %d blocs avec la méthode : %s", len(blocks), split_method)
+        blocks = split_note_content(
+            content=content,
+            split_method=split_method,
+            max_tokens=max_tokens,
+            max_chars=max_chars,
+            logger=logger,
+            note_id=note_id,
+        )
         processed_blocks: list[str] = []
 
         for i, block in enumerate(blocks):
             logger.debug("[DEBUG] Bloc %d/%d", i + 1, len(blocks))
             block_index = i
+            normalized_text = normalize_embedding_text(block)
 
             # Vérifie si déjà traité (si persistance active)
             if persist_blocks:
                 try:
-                    row = get_existing_bloc(
+                    existing: ExistingTempBlock | None = get_existing_bloc(
                         note_id=note_id,
                         block_index=block_index,
-                        prompt=entry_type or "",  # ok si custom_prompts
+                        prompt=entry_type or "",
                         model=model_ollama,
                         split_method=split_method,
                         word_limit=max_tokens,
                         source=source,
+                        content_hash=compute_text_hash(normalized_text),
                         logger=logger,
                     )
-                    if row:
-                        response_pb, status = row
-                        logger.debug("[DEBUG] Bloc row %s", row)
+                    if existing:
+                        response_pb = existing.response
+                        status = existing.status
+                        block_id = existing.block_id
+                        logger.debug("[DEBUG] Bloc %s", block_id)
                         if status == "processed" and resume_if_possible:
                             logger.debug("[DEBUG] Bloc %d déjà traité, skip", i)
                             if isinstance(response_pb, list):
@@ -108,7 +99,7 @@ def process_large_note(
                             processed_blocks.append(response_pb.strip())
                             continue
                     else:
-                        insert_bloc(
+                        block_id = insert_bloc(
                             note_id=note_id,
                             block_index=block_index,
                             content=block,
@@ -117,6 +108,7 @@ def process_large_note(
                             split_method=split_method,
                             word_limit=max_tokens,
                             source=source,
+                            content_hash=compute_text_hash(normalized_text),
                             logger=logger,
                         )
                 except Exception as exc:
@@ -138,7 +130,7 @@ def process_large_note(
             except OllamaError:
                 logger.error("[ERROR] Échec du bloc %d, saut…", i + 1)
                 if persist_blocks:
-                    mark_bloc_as_error(note_id, block_index, logger=logger)
+                    mark_bloc_as_error(block_id=block_id, logger=logger)
                 continue
 
             # Normalisation de la réponse
@@ -169,10 +161,8 @@ def process_large_note(
 
             if persist_blocks:
                 update_bloc_response(
-                    note_id=note_id,
-                    block_index=block_index,
+                    block_id=block_id,
                     response=response or "",
-                    source=source,
                     status="processed",
                     logger=logger,
                 )

@@ -12,10 +12,9 @@ from typing import Any
 import yaml
 
 from brainops.models.types import _YAML_FENCE
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def get_yaml(content: str, *, logger: LoggerProtocol | None = None) -> dict[str, Any]:
     logger = ensure_logger(logger, __name__)
     try:
@@ -31,7 +30,6 @@ def get_yaml(content: str, *, logger: LoggerProtocol | None = None) -> dict[str,
     return {}
 
 
-@with_child_logger
 def get_yaml_value(
     content: str, key: str, default: str | None = None, *, logger: LoggerProtocol | None = None
 ) -> Any | None:
@@ -56,7 +54,6 @@ def get_yaml_value(
     return y.get(key, default)
 
 
-@with_child_logger
 def update_yaml_header(content: str, new_metadata: dict[str, str], *, logger: LoggerProtocol | None = None) -> str:
     """
     Remplace l’en-tête YAML par new_metadata (écrase tout l’entête).
@@ -70,7 +67,6 @@ def update_yaml_header(content: str, new_metadata: dict[str, str], *, logger: Lo
     return new_front + body
 
 
-@with_child_logger
 def merge_yaml_header(
     content: str, new_metadata: dict[str, str | int | list[str]], *, logger: LoggerProtocol | None = None
 ) -> str:
@@ -95,7 +91,6 @@ def merge_yaml_header(
         return content
 
 
-@with_child_logger
 def patch_yaml_line(
     yaml_text: str,
     key: str,

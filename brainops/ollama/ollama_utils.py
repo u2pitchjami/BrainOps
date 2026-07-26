@@ -6,12 +6,12 @@ from __future__ import annotations
 
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.process_import.split.large_note import process_large_note
+from brainops.process_import.split.split_main import SplitMethod
 from brainops.process_import.split.standard_note import process_standard_note
 from brainops.process_import.utils.divers import prompt_name_and_model_selection
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def large_or_standard_note(
     note_id: int,
     content: str,
@@ -19,7 +19,7 @@ def large_or_standard_note(
     model_ollama: str | None = None,
     max_chars: int = 3800,
     max_tokens: int = 1500,
-    split_method: str = "auto",
+    split_method: SplitMethod = "auto",
     write_file: bool = True,
     send_to_model: bool = True,
     custom_prompts: dict[str, str] | None = None,

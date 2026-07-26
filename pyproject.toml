@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "brainops"
-version = "2.1.1"
+version = "3.0.0"
 description = "brainops"
 requires-python = ">=3.12"  # cohérent avec mypy/ruff
 
@@ -117,7 +117,7 @@ follow_imports = "skip"
 # --- Ruff (v0.6+) -----------------------------------------------------------
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py312"
 exclude = [
   ".venv", "venv", "__pycache__", ".mypy_cache", ".pytest_cache",
   "dist", "build", "docker", "z_old"

@@ -17,8 +17,6 @@ class NoteMetadata:
     title: str = ""
     tags: list[str] = field(default_factory=list)
     summary: str = ""
-    category: str = ""
-    subcategory: str = ""
 
     created: str | None = None
     last_modified: str | None = None
@@ -54,9 +52,6 @@ class NoteMetadata:
         def _as_str(x: Any, default: str = "") -> str:
             return default if x is None else str(x)
 
-        # subcategory alias
-        subcat = data.get("subcategory", data.get("sub category", ""))
-
         # tags normalisation
         raw_tags = data.get("tags", [])
         if isinstance(raw_tags, str):
@@ -75,8 +70,6 @@ class NoteMetadata:
             title=_as_str(data.get("title")),
             tags=tags,
             summary=_as_str(data.get("summary")),
-            category=_as_str(data.get("category")),
-            subcategory=_as_str(subcat),
             created=_as_str(data.get("created")) or None,
             last_modified=_as_str(data.get("last_modified")) or None,
             source=_as_str(data.get("source")),
@@ -141,8 +134,6 @@ class NoteMetadata:
             "title": self.title,
             "tags": [str(t).replace(" ", "_") for t in self.tags],
             "summary": self.summary.strip(),
-            "category": self.category,
-            "sub category": self.subcategory,
             "created": self.created or "",
             "last_modified": self.last_modified or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "source": self.source,

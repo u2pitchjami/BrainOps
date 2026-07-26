@@ -9,10 +9,9 @@ import time
 from brainops.io.paths import to_abs
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.types import StrOrPath
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def read_note_content(filepath: StrOrPath, *, logger: LoggerProtocol | None = None) -> str:
     """
     Lit le contenu d'une note (UTF-8), avec retry si vide.

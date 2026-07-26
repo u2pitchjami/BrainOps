@@ -4,6 +4,9 @@ from pathlib import Path
 import re
 import shutil
 
+from brainops.embeddings.ollama_provider import OllamaEmbeddingProvider
+from brainops.embeddings.repositories.temp_blocks_repository import TempBlocksEmbeddingRepository
+from brainops.embeddings.transcript_indexer import process_transcript_embeddings
 from brainops.ingest.audio_download import download_audio, find_audio_file, find_audio_for_manifest
 from brainops.ingest.audio_manifest import load_manifest
 from brainops.ingest.builder_note import build_note_shell_from_audio_manifest
@@ -16,7 +19,7 @@ from brainops.io.read_note import read_note_content
 from brainops.sql.notes.db_medias import upsert_media_from_model
 from brainops.sql.notes.db_update_notes import update_obsidian_note
 from brainops.sql.notes.db_upsert_note import upsert_note_from_model
-from brainops.utils.config import IMPORTS_PATH, MANIFEST_DIR, WORK_DIR
+from brainops.utils.config import IMPORTS_PATH, MANIFEST_DIR, MODEL_EMBEDDINGS, WORK_DIR
 from brainops.utils.logger import get_logger
 
 logger = get_logger("Brainops Audio Pipeline")
@@ -128,6 +131,7 @@ def process_audio_manifests(
 
             # --- Transcription ---
             transcription_path = output_dir / "transcription.json"
+            normalized_json_path = output_dir / "normalized_transcription.json"
             if not force_transcription and is_valid_transcription(transcription_path):
                 logger.info(
                     "Valid transcription already present, transcription skipped: %s",
@@ -150,9 +154,10 @@ def process_audio_manifests(
             markdown_filename = f"{slugify(title)}.md"
             markdown_path = output_dir / markdown_filename
 
-            generate_markdown_from_whisper(
+            transcript = generate_markdown_from_whisper(
                 whisper_json_path=transcription_path,
                 output_md=markdown_path,
+                normalized_json_path=Path(normalized_json_path),
                 title=title,
                 manifest=manifest,
                 audio_file=audio_file,
@@ -191,6 +196,17 @@ def process_audio_manifests(
             )
 
             media_id = upsert_media_from_model(media)
+
+            embedding_result = process_transcript_embeddings(
+                media_id=media_id,
+                transcript=transcript,
+                model_name=MODEL_EMBEDDINGS,
+                provider=OllamaEmbeddingProvider(),
+                repository=TempBlocksEmbeddingRepository(),
+                resume_if_possible=True,
+                logger=logger,
+            )
+            logger.debug(f"embedding_result = {embedding_result}")
 
             # --- Copy Markdown to IMPORTS_PATH ---
             imports_md_path = imports_path / markdown_filename

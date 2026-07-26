@@ -12,7 +12,6 @@ from brainops.sql.db_connection import get_db_connection
 from brainops.utils.logger import (
     LoggerProtocol,
     ensure_logger,
-    with_child_logger,
 )
 
 _ALLOWED_COLUMNS_MEDIAS: set[str] = {
@@ -61,7 +60,6 @@ def _prepare_media_update_value(column: str, value: Any) -> Any:
     return value
 
 
-@with_child_logger
 def update_obsidian_medias(
     media_id: int,
     updates: dict[str, Any],

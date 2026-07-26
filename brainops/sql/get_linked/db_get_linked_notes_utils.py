@@ -6,10 +6,9 @@ from __future__ import annotations
 
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.sql.get_linked.db_get_linked_data import get_note_linked_data
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def get_note_lang(note_id: int, *, logger: LoggerProtocol | None = None) -> str:
     """
     Retourne la langue (3 lettres) ou 'inconnu'.
@@ -19,7 +18,6 @@ def get_note_lang(note_id: int, *, logger: LoggerProtocol | None = None) -> str:
     return str(data.get("lang")) if isinstance(data, dict) and data.get("lang") else "inconnu"
 
 
-@with_child_logger
 def get_data_for_should_trigger(note_id: int, *, logger: LoggerProtocol | None = None) -> tuple[str, int | None, int]:
     """
     Retourne (status, parent_id, word_count) pour décider si un traitement doit être déclenché.
@@ -34,7 +32,6 @@ def get_data_for_should_trigger(note_id: int, *, logger: LoggerProtocol | None =
     return status, parent_id, word_count
 
 
-@with_child_logger
 def get_parent_id(note_id: int, *, logger: LoggerProtocol | None = None) -> int | None:
     """
     get_parent_id _summary_
@@ -55,7 +52,6 @@ def get_parent_id(note_id: int, *, logger: LoggerProtocol | None = None) -> int 
     return int(note["parent_id"]) if note.get("parent_id") is not None else None
 
 
-@with_child_logger
 def get_file_path(note_id: int, *, logger: LoggerProtocol | None = None) -> str:
     """
     get_file_path _summary_
@@ -76,7 +72,6 @@ def get_file_path(note_id: int, *, logger: LoggerProtocol | None = None) -> str:
     return str(note["file_path"])
 
 
-@with_child_logger
 def get_note_status(note_id: int, *, logger: LoggerProtocol | None = None) -> str:
     """
     get_note_status _summary_
@@ -97,7 +92,6 @@ def get_note_status(note_id: int, *, logger: LoggerProtocol | None = None) -> st
     return str(note["status"])
 
 
-@with_child_logger
 def get_note_wc(note_id: int, *, logger: LoggerProtocol | None = None) -> int:
     """
     get_note_wc _summary_

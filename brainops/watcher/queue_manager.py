@@ -10,11 +10,10 @@ from queue import Queue
 
 from brainops.ingest.audio_pipeline import process_audio_manifests
 from brainops.io.paths import exists
-from brainops.models.event import DirEvent, Event, QueuedNoteContext
+from brainops.models.event import Event, QueuedNoteContext
 from brainops.models.exceptions import BrainOpsError
 from brainops.models.note import Note
 from brainops.models.note_context import NoteContext
-from brainops.process_folders.process_folder_event import process_folder_event
 from brainops.process_notes.check_duplicate import hub_check_duplicate
 from brainops.process_notes.new_note import new_note
 from brainops.process_notes.process_single_note import process_single_note
@@ -110,6 +109,11 @@ def process_queue() -> None:
             etype = event["type"]
             action = event["action"]
 
+            # ignore dossiers cachés / non pertinents
+            if file_path.startswith(".") or "untitled" in file_path.lower() or "sans titre" in file_path.lower():
+                logger.info(f"[INFO] Fichier ignoré : {file_path}")
+                continue
+
             # Fichiers: attendre la présence (sauf 'deleted')
             if etype == "file":
                 logger.debug("etype == file")
@@ -186,22 +190,22 @@ def process_queue() -> None:
                         process_single_note(ctx, queued_ctx, logger=logger)
 
             # Dossiers: déléguer au gestionnaire de dossiers
-            if etype == "directory":
-                if action == "moved":
-                    dir_ev: DirEvent = {
-                        "type": "directory",
-                        "action": "moved",
-                        "src_path": event["src_path"],
-                        "path": event["path"],
-                    }
-                else:
-                    dir_ev = {
-                        "type": "directory",
-                        "action": event["action"],
-                        "path": event["path"],
-                    }
+            # if etype == "directory":
+            #     if action == "moved":
+            #         dir_ev: DirEvent = {
+            #             "type": "directory",
+            #             "action": "moved",
+            #             "src_path": event["src_path"],
+            #             "path": event["path"],
+            #         }
+            #     else:
+            #         dir_ev = {
+            #             "type": "directory",
+            #             "action": event["action"],
+            #             "path": event["path"],
+            #         }
 
-                process_folder_event(dir_ev, logger=logger)
+            #     process_folder_event(dir_ev, logger=logger)
 
             if etype == "script":
                 if action == "reconcile":

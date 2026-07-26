@@ -13,10 +13,9 @@ from brainops.process_notes.new_note_utils import (
 )
 from brainops.sql.notes.db_check_duplicate_note import check_duplicate
 from brainops.utils.config import IMPORTS_PATH
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def hub_check_duplicate(ctx: NoteContext, *, logger: LoggerProtocol | None = None) -> bool:
     """
     Check if note is a duplicate of another note.

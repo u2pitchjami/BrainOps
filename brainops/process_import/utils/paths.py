@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
 def path_contains_segment(path: str | Path, segment: str) -> bool:
@@ -35,7 +35,6 @@ def path_is_inside(base: str | Path, target: str | Path) -> bool:
         return False
 
 
-@with_child_logger
 def get_relative_parts(
     folder_path: str | Path,
     base_path: str | Path,

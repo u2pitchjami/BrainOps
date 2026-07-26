@@ -11,10 +11,9 @@ import yaml
 from brainops.header.extract_yaml_header import extract_yaml_header
 from brainops.models.metadata import NoteMetadata
 from brainops.models.types import _YAML_FENCE, StrOrPath
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def get_yaml(content: str, *, logger: LoggerProtocol | None = None) -> dict[str, Any]:
     logger = ensure_logger(logger, __name__)
     try:
@@ -30,7 +29,6 @@ def get_yaml(content: str, *, logger: LoggerProtocol | None = None) -> dict[str,
     return {}
 
 
-@with_child_logger
 def read_note_body(filepath: StrOrPath, *, logger: LoggerProtocol | None = None) -> str:
     """
     Retourne uniquement le corps de la note (hors YAML).
@@ -39,7 +37,6 @@ def read_note_body(filepath: StrOrPath, *, logger: LoggerProtocol | None = None)
     return body
 
 
-@with_child_logger
 def read_metadata(filepath: StrOrPath, *, logger: LoggerProtocol | None = None) -> dict[str, Any]:
     """
     Retourne les métadonnées de l'entête YAML (dict brut).
@@ -52,7 +49,6 @@ def read_metadata(filepath: StrOrPath, *, logger: LoggerProtocol | None = None) 
     return meta
 
 
-@with_child_logger
 def read_metadata_field(filepath: StrOrPath, key: str, *, logger: LoggerProtocol | None = None) -> Any:
     """
     Retourne une seule valeur de métadonnée (ex: "title").
@@ -60,7 +56,6 @@ def read_metadata_field(filepath: StrOrPath, key: str, *, logger: LoggerProtocol
     return read_metadata(filepath, logger=logger).get(key)
 
 
-@with_child_logger
 def read_metadata_object(filepath: StrOrPath, *, logger: LoggerProtocol | None = None) -> NoteMetadata:
     """
     Retourne un objet NoteMetadata typé à partir de l'entête YAML.
@@ -71,7 +66,6 @@ def read_metadata_object(filepath: StrOrPath, *, logger: LoggerProtocol | None =
     return NoteMetadata.from_yaml_dict(meta_dict)
 
 
-@with_child_logger
 def read_note_full(filepath: StrOrPath, *, logger: LoggerProtocol | None = None) -> tuple[NoteMetadata, str]:
     """
     Retourne les métadonnées typées + le corps de la note.

@@ -8,13 +8,12 @@ from typing import Any
 
 from brainops.models.cursor_protocol import DictCursorProtocol, TupleCursorProtocol
 from brainops.models.exceptions import BrainOpsError, ErrCode
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 # Typing selon ce que pymysql accepte réellement
 ParamsType = tuple[Any, ...] | dict[str, Any]
 
 
-@with_child_logger
 def safe_execute_dict(
     cursor: DictCursorProtocol,
     query: str,
@@ -44,7 +43,6 @@ def safe_execute_dict(
         raise BrainOpsError("Erreur requête DB", code=ErrCode.DB, ctx={"query": query}) from exc
 
 
-@with_child_logger
 def safe_execute_tuple(
     cursor: TupleCursorProtocol,
     query: str,
@@ -74,7 +72,6 @@ def safe_execute_tuple(
         raise BrainOpsError("Erreur requête DB", code=ErrCode.DB, ctx={"query": query}) from exc
 
 
-@with_child_logger
 def flush_tuple_cursor(cursor: TupleCursorProtocol, logger: LoggerProtocol | None = None) -> None:
     """
     Vide proprement le curseur MySQL (utile pour éviter les erreurs 'Unread result found' lors d'appels successifs).
@@ -89,7 +86,6 @@ def flush_tuple_cursor(cursor: TupleCursorProtocol, logger: LoggerProtocol | Non
         logger.debug("flush_cursor: ignore exception while draining cursor: %s", exc)
 
 
-@with_child_logger
 def flush_dict_cursor(cursor: DictCursorProtocol, logger: LoggerProtocol | None = None) -> None:
     """
     Vide proprement le curseur MySQL (utile pour éviter les erreurs 'Unread result found' lors d'appels successifs).

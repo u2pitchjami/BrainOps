@@ -16,10 +16,9 @@ from brainops.io.read_note import read_note_content
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.metadata import NoteMetadata
 from brainops.models.types import StrOrPath
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def safe_write(
     file_path: StrOrPath,
     content: str | Iterable[str],
@@ -60,7 +59,6 @@ def safe_write(
         raise BrainOpsError("write file KO", code=ErrCode.FILEERROR, ctx={"file_path": file_path}) from exc
 
 
-@with_child_logger
 def write_metadata_to_note(
     filepath: StrOrPath, content: str, metadata: NoteMetadata, *, logger: LoggerProtocol | None = None
 ) -> bool:
@@ -97,7 +95,6 @@ def write_metadata_to_note(
         return False
 
 
-@with_child_logger
 def merge_metadata_in_note(
     filepath: StrOrPath, updates: dict[str, str | int | list[str]], *, logger: LoggerProtocol | None = None
 ) -> bool:
@@ -119,7 +116,6 @@ def merge_metadata_in_note(
         return False
 
 
-@with_child_logger
 def update_yaml_field(filepath: StrOrPath, key: str, value: str, *, logger: LoggerProtocol | None = None) -> bool:
     """
     Met à jour un champ unique dans l'entête YAML (écrase sa valeur).

@@ -8,10 +8,9 @@ from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.note import Note
 from brainops.sql.db_connection import get_db_connection, get_dict_cursor
 from brainops.sql.db_utils import safe_execute_dict
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
-@with_child_logger
 def upsert_note_from_model(note: Note, *, logger: LoggerProtocol | None = None) -> int:
     """
     Upsert idempotent par `file_path` (UNIQUE) avec retour d'id via LAST_INSERT_ID(id).
@@ -25,21 +24,18 @@ def upsert_note_from_model(note: Note, *, logger: LoggerProtocol | None = None) 
                 cur,
                 """
                 INSERT INTO obsidian_notes
-                  (parent_id, title, file_path, folder_id,
-                   category_id, subcategory_id, status, summary,
+                  (parent_id, title, file_path,
+                   status, summary,
                    source, author, project, created_at, modified_at,
                    word_count, content_hash, source_hash, lang, media_id, doc_type, analysis_profile)
                 VALUES
-                  (%s,%s,%s,%s,
-                   %s,%s,%s,%s,
+                  (%s,%s,%s,
+                   %s,%s,
                    %s,%s,%s,%s,%s,
                    %s,%s,%s,%s,%s,%s,%s)
                 ON DUPLICATE KEY UPDATE
                   parent_id=VALUES(parent_id),
                   title=VALUES(title),
-                  folder_id=VALUES(folder_id),
-                  category_id=VALUES(category_id),
-                  subcategory_id=VALUES(subcategory_id),
                   status=VALUES(status),
                   summary=VALUES(summary),
                   source=VALUES(source),

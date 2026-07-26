@@ -14,14 +14,11 @@ from typing import Any
 from brainops.io.paths import to_abs
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.process_folders.folders import ensure_folder_exists
-from brainops.sql.get_linked.db_get_linked_folders_utils import (
-    get_folder_id,
-)
 from brainops.sql.get_linked.db_get_linked_notes_utils import get_data_for_should_trigger, get_file_path
 from brainops.sql.notes.db_update_notes import update_obsidian_note
 from brainops.utils.config import ERRORED_JSON, ERRORED_PATH
 from brainops.utils.files import wait_for_file
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 
 def _unique_dest(dest: Path) -> Path:
@@ -46,7 +43,6 @@ def _exc_payload(exc: BrainOpsError | str | list[str]) -> dict[str, Any]:
     return {"error": "Unknown error"}
 
 
-@with_child_logger
 def handle_errored_file(
     note_id: int,
     filepath: str | Path,
@@ -110,9 +106,8 @@ def handle_errored_file(
                 logger.warning("Suppression échouée (%s): %s", path_to_delete, rm_exc)
 
         # MAJ DB sur la note “survivante”
-        unc_folder_id = get_folder_id(Path(ERRORED_PATH).as_posix(), logger=logger)
         if def_note_id:
-            updates_folder = {"folder_id": unc_folder_id, "file_path": dest.as_posix(), "status": "error"}
+            updates_folder = {"file_path": dest.as_posix(), "status": "error"}
             update_obsidian_note(def_note_id, updates_folder, logger=logger)
 
         # Journal JSON (payload sérialisable)

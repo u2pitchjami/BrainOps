@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
-import functools
 import logging
 import logging.handlers
 import os
-from typing import Any, ParamSpec, Protocol, TypeVar, cast
+from typing import Any, Protocol
 
 from brainops.utils.config import LOG_FILE_PATH, LOG_LEVEL, LOG_ROTATION_DAYS
 from brainops.utils.log_rotation import rotate_logs
@@ -249,34 +247,34 @@ def ensure_logger(logger: LoggerProtocol | None, module: str) -> LoggerProtocol:
 
 
 # ---------- Décorateur type-safe ----------
-P = ParamSpec("P")
-R = TypeVar("R")
+# P = ParamSpec("P")
+# R = TypeVar("R")
 
 
-def with_child_logger(func: Callable[P, R]) -> Callable[P, R]:
-    """
-    Définit un décorateur qui renvoie le résultat du décoré avec un filtreur de logger.
+# def with_child_logger(func: Callable[P, R]) -> Callable[P, R]:
+#     """
+#     Définit un décorateur qui renvoie le résultat du décoré avec un filtreur de logger.
 
-    :param func: La fonction à décorer
-    :return: La fonction décorée avec un filtreur de logger
-    """
+#     :param func: La fonction à décorer
+#     :return: La fonction décorée avec un filtreur de logger
+#     """
 
-    @functools.wraps(func)
-    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-        current = cast(LoggerProtocol | None, kwargs.get("logger"))
-        if current is None:
-            # Premier hop : on prend le nom de module pour initialiser
-            base = ensure_logger(current, func.__module__)  # init une seule fois
-            # enrichir avec le nom de la fonction, sans doubler
-            kwargs["logger"] = _get_or_child(base, func.__name__)
-        # Sinon on ne touche pas au logger transmis (pas d'empilement)
-        return func(*args, **kwargs)
+#     @functools.wraps(func)
+#     def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+#         current = cast(LoggerProtocol | None, kwargs.get("logger"))
+#         if current is None:
+#             # Premier hop : on prend le nom de module pour initialiser
+#             base = ensure_logger(current, func.__module__)  # init une seule fois
+#             # enrichir avec le nom de la fonction, sans doubler
+#             kwargs["logger"] = _get_or_child(base, func.__name__)
+#         # Sinon on ne touche pas au logger transmis (pas d'empilement)
+#         return func(*args, **kwargs)
 
-    return wrapper
+#     return wrapper
 
 
-def _get_or_child(logger: LoggerProtocol, suffix: str) -> LoggerProtocol:
-    base_name = cast(logging.Logger, logger._base).name  # type: ignore[attr-defined]
-    if base_name.endswith(f".{suffix}") or base_name == suffix:
-        return logger
-    return logger.get_child(suffix)
+# def _get_or_child(logger: LoggerProtocol, suffix: str) -> LoggerProtocol:
+#     base_name = cast(logging.Logger, logger._base).name  # type: ignore[attr-defined]
+#     if base_name.endswith(f".{suffix}") or base_name == suffix:
+#         return logger
+#     return logger.get_child(suffix)

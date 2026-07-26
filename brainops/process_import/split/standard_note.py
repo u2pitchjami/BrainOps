@@ -4,6 +4,7 @@ process_import.utils.standard_note.py.
 
 from __future__ import annotations
 
+from brainops.embeddings.transcript_indexer import compute_text_hash, normalize_embedding_text
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.ollama.ollama_call import call_ollama_with_retry
 from brainops.ollama.prompts import PROMPTS
@@ -13,11 +14,10 @@ from brainops.sql.temp_blocs.db_temp_blocs import (
     update_bloc_response,
 )
 from brainops.utils.files import maybe_clean
-from brainops.utils.logger import LoggerProtocol, ensure_logger, with_child_logger
+from brainops.utils.logger import LoggerProtocol, ensure_logger
 from brainops.utils.normalization import clean_fake_code_blocks
 
 
-@with_child_logger
 def process_standard_note(
     note_id: int,
     model_ollama: str,
@@ -43,6 +43,8 @@ def process_standard_note(
         raise BrainOpsError("Prompt introuvable", code=ErrCode.OLLAMA, ctx={"note_id": note_id})
     prompt = prompt_tpl.format(content=content)
 
+    normalized_text = normalize_embedding_text(content)
+
     block_index = 0
     split_method = "none"
     word_limit = 0
@@ -56,14 +58,15 @@ def process_standard_note(
         split_method=split_method,
         word_limit=word_limit,
         source=source,
+        content_hash=compute_text_hash(normalized_text),
         logger=logger,
     )
-    if existing and existing[1] == "processed" and resume_if_possible:
+    if existing and existing.status == "processed" and resume_if_possible and existing.response:
         logger.info("[SKIP] Note déjà traitée : %s", note_id)
-        return existing[0].strip()
+        return existing.response.strip()
 
     # 4) Insert + appel LLM
-    insert_bloc(
+    block_id = insert_bloc(
         note_id=note_id,
         block_index=block_index,
         content=content,
@@ -72,6 +75,7 @@ def process_standard_note(
         split_method=split_method,
         word_limit=word_limit,
         source=source,
+        content_hash=compute_text_hash(normalized_text),
         logger=logger,
     )
 
@@ -79,10 +83,8 @@ def process_standard_note(
     response_clean = clean_fake_code_blocks(maybe_clean(response)).strip()
 
     update_bloc_response(
-        note_id=note_id,
-        block_index=block_index,
-        response=response_clean,
-        source=source,
+        block_id=block_id,
+        response=response or "",
         status="processed",
         logger=logger,
     )
