@@ -21,10 +21,12 @@ from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.media import TempBlockRef
 from brainops.models.note_context import NoteContext
 from brainops.process_import.split.split_main import SplitMethod, split_note_content
+from brainops.utils.config import MODEL_EMBEDDINGS
 from brainops.utils.logger import (
-    LoggerProtocol,
-    ensure_logger,
+    get_logger,
 )
+
+logger = get_logger("Brainops Embeddings")
 
 
 class TranscriptParagraphProtocol(Protocol):
@@ -188,7 +190,7 @@ def build_transcript_embedding_blocks(
 def _validate_indexing_parameters(
     *,
     media_id: int,
-    model_name: str,
+    model_name: str = MODEL_EMBEDDINGS,
 ) -> None:
     """
     Valide les paramètres principaux d'une indexation.
@@ -209,7 +211,6 @@ def _try_mark_block_as_error(
     block: EmbeddingBlockProtocol,
     model_name: str,
     error: Exception,
-    logger: LoggerProtocol,
 ) -> None:
     """
     Tente de marquer un bloc enregistré comme étant en erreur.
@@ -244,11 +245,10 @@ def process_transcript_embeddings(
     *,
     media_id: int,
     transcript: TranscriptProtocol,
-    model_name: str,
+    model_name: str = MODEL_EMBEDDINGS,
     provider: EmbeddingProviderProtocol,
     repository: EmbeddingRepositoryProtocol,
     resume_if_possible: bool = True,
-    logger: LoggerProtocol | None = None,
 ) -> EmbeddingProcessingResult:
     """
     Génère et persiste les embeddings d'une transcription.
@@ -275,8 +275,6 @@ def process_transcript_embeddings(
         ValueError: Si les paramètres ou la transcription sont invalides.
         BrainOpsError: Si tous les blocs échouent.
     """
-    current_logger = ensure_logger(logger, __name__)
-
     _validate_indexing_parameters(
         media_id=media_id,
         model_name=model_name,
@@ -284,7 +282,7 @@ def process_transcript_embeddings(
 
     blocks = build_transcript_embedding_blocks(transcript)
 
-    current_logger.info(
+    logger.info(
         ("Début de l'indexation de la transcription : media_id=%d, blocs=%d, modèle=%s"),
         media_id,
         len(blocks),
@@ -292,7 +290,7 @@ def process_transcript_embeddings(
     )
 
     if not blocks:
-        current_logger.warning(
+        logger.warning(
             "Aucun paragraphe exploitable dans la transcription : media_id=%d",
             media_id,
         )
@@ -305,23 +303,19 @@ def process_transcript_embeddings(
         repository=repository,
         provider=provider,
         resume_if_possible=resume_if_possible,
-        logger=current_logger,
     )
 
 
 def process_note_embeddings(
     ctx: NoteContext,
-    model_name: str,
     provider: EmbeddingProviderProtocol,
     repository: EmbeddingRepositoryProtocol,
+    model_name: str = MODEL_EMBEDDINGS,
     resume_if_possible: bool = True,
     split_method: SplitMethod | None = "auto",
     max_token: int = 1500,
     max_chars: int = 3800,
-    logger: LoggerProtocol | None = None,
 ) -> EmbeddingProcessingResult:
-    logger = ensure_logger(logger, __name__)
-
     if not ctx or not ctx.note_db.id or not ctx.note_content:
         raise ValueError("Erreur dans le NoteContext")
 
@@ -347,7 +341,6 @@ def process_note_embeddings(
         repository=repository,
         provider=provider,
         resume_if_possible=resume_if_possible,
-        logger=logger,
     )
 
 
@@ -385,7 +378,6 @@ def process_embedding_blocks(
     repository: EmbeddingRepositoryProtocol,
     provider: EmbeddingProviderProtocol,
     resume_if_possible: bool = True,
-    logger: LoggerProtocol | None = None,
 ) -> EmbeddingProcessingResult:
     """
     Vectorise et persiste une séquence de blocs texte.
@@ -410,19 +402,23 @@ def process_embedding_blocks(
         ValueError: Si le propriétaire ou les paramètres sont invalides.
         BrainOpsError: Si tous les blocs non vides échouent.
     """
-    current_logger = ensure_logger(logger, __name__)
 
     validate_block_owner(
         note_id=note_id,
         media_id=media_id,
     )
 
+    existing_blocks, _ = repository.get_emb_block(
+        note_id=note_id, media_id=media_id, source="embeddings", status="processed", logger=logger
+    )
+    existing_block_count = len(existing_blocks)
+
     processed_count = 0
     resumed_count = 0
     failures: list[EmbeddingProcessingFailure] = []
 
     for position, block in enumerate(blocks, start=1):
-        current_logger.debug(
+        logger.debug(
             ("Traitement du bloc %d/%d : note_id=%s, media_id=%s, block_index=%d"),
             position,
             len(blocks),
@@ -443,7 +439,7 @@ def process_embedding_blocks(
                     block_index=block.block_index,
                     model=model_name,
                     content_hash=block.content_hash,
-                    logger=current_logger,
+                    logger=logger,
                 )
 
             if existing_vector is not None:
@@ -453,7 +449,7 @@ def process_embedding_blocks(
                         block_index=block.block_index,
                     )
                 except (TypeError, ValueError) as exc:
-                    current_logger.warning(
+                    logger.warning(
                         (
                             "Embedding existant invalide, recalcul nécessaire : "
                             "note_id=%s, media_id=%s, block_index=%d, erreur=%s"
@@ -466,7 +462,7 @@ def process_embedding_blocks(
                 else:
                     resumed_count += 1
 
-                    current_logger.debug(
+                    logger.debug(
                         ("Embedding existant réutilisé : note_id=%s, media_id=%s, block_index=%d"),
                         note_id,
                         media_id,
@@ -479,13 +475,13 @@ def process_embedding_blocks(
                 media_id=media_id,
                 block=block,
                 model=model_name,
-                logger=current_logger,
+                logger=logger,
             )
 
             raw_vector = provider.embed(
                 text=block.text,
                 model=model_name,
-                logger=current_logger,
+                logger=logger,
             )
 
             vector = validate_embedding_vector(
@@ -496,12 +492,12 @@ def process_embedding_blocks(
             repository.save_vector(
                 block_id=block_ref.block_id,
                 vector=vector,
-                logger=current_logger,
+                logger=logger,
             )
 
             processed_count += 1
 
-            current_logger.debug(
+            logger.debug(
                 ("Embedding enregistré : note_id=%s, media_id=%s, block_index=%d, dimensions=%d"),
                 note_id,
                 media_id,
@@ -510,7 +506,7 @@ def process_embedding_blocks(
             )
 
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            current_logger.exception(
+            logger.exception(
                 ("Échec du traitement d'un bloc d'embedding : note_id=%s, media_id=%s, block_index=%d"),
                 note_id,
                 media_id,
@@ -533,8 +529,17 @@ def process_embedding_blocks(
                 block=block,
                 model_name=model_name,
                 error=exc,
-                logger=current_logger,
             )
+
+    if existing_block_count > len(blocks):
+        logger.info("Suppression des blocs inutiles")
+        repository.del_temp_block(
+            note_id=note_id,
+            media_id=media_id,
+            source="embeddings",
+            status="processed",
+            first_index=len(blocks),
+        )
 
     result = EmbeddingProcessingResult(
         total_blocks=len(blocks),
@@ -544,7 +549,7 @@ def process_embedding_blocks(
         failures=tuple(failures),
     )
 
-    current_logger.info(
+    logger.info(
         ("Traitement des embeddings terminé : note_id=%s, media_id=%s, total=%d, nouveaux=%d, repris=%d, erreurs=%d"),
         note_id,
         media_id,

@@ -12,7 +12,7 @@ class FolderType(StrEnum):
     Miroir de l'ENUM MariaDB.
     """
 
-    STORAGE = "synthesis"
+    STORAGE = "storage"
     SYNTHESIS = "synthesis"
     ARCHIVE = "archive"
     TECHNICAL = "technical"
@@ -26,6 +26,7 @@ class FolderType(StrEnum):
     TEMPLATES = "templates"
     DAILY_NOTES = "daily_notes"
     GPT = "gpt"
+    OTHER = "other"
 
     def __str__(self) -> str:
         return self.value

@@ -43,7 +43,7 @@ def read_metadata(filepath: StrOrPath, *, logger: LoggerProtocol | None = None) 
     """
     logger = ensure_logger(logger, __name__)
     header_lines, _ = extract_yaml_header(str(filepath), logger=logger)
-    logger.debug(f"read_metadata header_lines: {header_lines}")
+    logger.debug(f"read_metadata header_lines: {header_lines[:50]}")
     meta = get_yaml("\n".join(header_lines), logger=logger)
     logger.debug(f"read_metadata metadata: {meta}")
     return meta
@@ -74,8 +74,8 @@ def read_note_full(filepath: StrOrPath, *, logger: LoggerProtocol | None = None)
     """
     logger = ensure_logger(logger, __name__)
     header_lines, body = extract_yaml_header(str(filepath), logger=logger)
-    logger.debug(f"read_note_full header_lines: {header_lines}")
-    logger.debug(f"read_note_full body: {body}")
+    logger.debug(f"read_note_full header_lines: {header_lines[:50]}")
+    logger.debug(f"read_note_full body: {body[:100]}")
     meta = NoteMetadata.from_yaml_dict(get_yaml("\n".join(header_lines)))
     logger.debug(f"read_note_full meta: {meta}")
     return meta, body

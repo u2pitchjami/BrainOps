@@ -69,7 +69,7 @@ def build_metadata_from_audio_manifest(
     if not created:
         created = _now_utc_iso()
 
-    absolute_audio = Path("/mnt/user/Zin-progress/Brainops/")
+    absolute_audio = Path("/mnt/user/Projets/BrainOps/")
     media_abs = absolute_audio / to_rel(str(media_file_path))
 
     authors = [author.strip() for author in raw_authors if isinstance(author, str) and author.strip()]

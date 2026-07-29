@@ -121,7 +121,7 @@ def ollama_generate(endpoint: str, prompt: str, model_ollama: str, *, logger: Lo
     payload: dict[str, Any] = {
         "model": model_ollama,
         "prompt": prompt,
-        "options": {"num_predict": -1, "num_ctx": 4096},
+        "options": {"num_predict": -1, "num_ctx": 16384},
     }
 
     try:

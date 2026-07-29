@@ -36,8 +36,8 @@ def extract_yaml_header(filepath: str, *, logger: LoggerProtocol | None = None) 
             content_lines = lines
 
         body = "\n".join(content_lines)
-        logger.debug("[DEBUG] extract_yaml_header: header=%r", header_lines)
-        logger.debug("[DEBUG] extract_yaml_header: body=%r", body[:300])
+        logger.debug("[DEBUG] extract_yaml_header: header=%r", header_lines[:50])
+        logger.debug("[DEBUG] extract_yaml_header: body=%r", body[:100])
         return header_lines, body
     except FileNotFoundError as exc:  # pylint: disable=broad-except
         raise BrainOpsError(

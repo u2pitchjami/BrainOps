@@ -4,27 +4,89 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+import os
 from pathlib import Path
 
 from brainops.analysis.builder import build_analysis_config
+from brainops.embeddings.emb_prompts import build_prompts_main
+from brainops.embeddings.emb_utils import select_top_blocks_by_mode
+from brainops.embeddings.headers import make_properties
+from brainops.header.get_tags_and_summary import _parse_jsonish_tags
 from brainops.header.header_utils import hash_source
-from brainops.header.headers import make_properties
 from brainops.io.paths import exists, remove_file
+from brainops.io.utils import count_words
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.metadata import NoteMetadata
 from brainops.models.note_context import NoteContext
+from brainops.ollama.ollama_call import call_ollama_with_retry
 from brainops.process_folders.folders import ensure_folder_exists
-from brainops.process_import.media.import_synthese import (
-    process_import_syntheses,
-)
+from brainops.process_import.join.join_header_body import join_header_body
+from brainops.process_import.media.media_utils import make_retranscription
+from brainops.process_import.split.split_utils import count_tokens
 from brainops.process_import.utils.archive import build_synthesis_path
 from brainops.process_import.utils.divers import rename_file
-from brainops.utils.config import ANALYSIS_PROFILES_DIR, SAV_PATH, Z_STORAGE_PATH
-from brainops.utils.files import clean_content, copy_file_with_date
+from brainops.process_import.utils.paths import path_is_inside
+from brainops.sql.notes.db_update_notes import update_obsidian_note, update_obsidian_tags
+from brainops.utils.config import ANALYSIS_PROFILES_DIR, IMPORTS_PATH, MODEL_FR, SAV_PATH, Z_STORAGE_PATH
+from brainops.utils.files import copy_file_with_date
 from brainops.utils.logger import get_logger
-from brainops.utils.normalization import sanitize_yaml_title
+from brainops.utils.normalization import sanitize_created, sanitize_yaml_title
 
-logger = get_logger("Brainops Imports")
+logger = get_logger("Brainops Imports Médias")
+
+
+def update_retranscript(
+    final_synth_body_content: str,
+    note_id: int,
+    synthesis_path: Path,
+    meta_synth_final: NoteMetadata,
+) -> bool:
+    """
+    new_synthesis _summary_
+
+    _extended_summary_
+
+    Args:
+        final_synth_body_content (str): _description_
+        note_id (int): _description_
+        synthesis_path (Path): _description_
+        meta_synth_final (NoteMetadata): _description_
+        classification (ClassificationResult): _description_
+        logger (LoggerProtocol | None, optional): _description_. Defaults to None.
+
+    Returns:
+        bool: _description_
+    """
+    try:
+        wc = count_words(final_synth_body_content)
+
+        modified_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        updates = {
+            "file_path": str(synthesis_path),
+            "title": sanitize_yaml_title(meta_synth_final.title),
+            "status": meta_synth_final.status,
+            "summary": meta_synth_final.summary,
+            "source": meta_synth_final.source,
+            "author": meta_synth_final.author,
+            "project": meta_synth_final.project,
+            "created_at": sanitize_created(meta_synth_final.created),
+            "modified_at": modified_at,
+            "word_count": wc,
+        }
+        update = update_obsidian_note(note_id, updates, logger=logger)
+        update_obsidian_tags(note_id, tags=meta_synth_final.tags, logger=logger)
+        if not update:
+            logger.error(
+                "[ERREUR] 🚨 Problème lors de l'insertion en db de la synthèse (%s)",
+                str(synthesis_path),
+            )
+            return False
+        return True
+
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.exception("[ERREUR] Impossible de traiter %s : %s", note_id, exc)
+        return False
 
 
 def import_media(filepath: str | Path, note_id: int, ctx: NoteContext) -> bool:
@@ -34,7 +96,7 @@ def import_media(filepath: str | Path, note_id: int, ctx: NoteContext) -> bool:
 
     Retourne le chemin final (str) ou None en cas d’erreur.
     """
-    if not ctx:
+    if not ctx or not ctx.media or not ctx.media.id:
         raise BrainOpsError(
             "[IMPORT] ❌ Contexte invalide",
             code=ErrCode.CONTEXT,
@@ -43,11 +105,10 @@ def import_media(filepath: str | Path, note_id: int, ctx: NoteContext) -> bool:
     src = Path(filepath)
     name = src.stem
     suffix = src.suffix
-    logger.info("[INFO] ▶️ LANCEMENT IMPORT : (id=%s) path=%s", note_id, src.as_posix())
-    logger.debug("[DEBUG] +++ ▶️ PRE IMPORT NORMAL pour %s", src.as_posix())
+    logger.debug("[INFO] ▶️ LANCEMENT IMPORT MEDIA : (id=%s) path=%s", note_id, src.as_posix())
 
     try:
-        logger.info("[INFO] Vérification de l'état d'Ollama...")
+        logger.debug("[INFO] Vérification de l'état d'Ollama...")
         if not ctx.note_content or not ctx.note_metadata or not ctx.note_wc:
             raise BrainOpsError(
                 "[IMPORT] ❌ données ctx innaccessibles",
@@ -78,14 +139,83 @@ def import_media(filepath: str | Path, note_id: int, ctx: NoteContext) -> bool:
             logger=ctx.logger,
         )
 
-        content = clean_content(ctx.note_content)
+        top_blocks = select_top_blocks_by_mode(
+            note_id=None,
+            media_id=ctx.media.id,
+            source="embeddings",
+            status="processed",
+            mode_def=ctx.analysis.selection_mode,
+            logger=logger,
+        )
+
+        struct_media_prompt, glossary_prompt, tags_prompt, summary_prompt = build_prompts_main(
+            blocks=top_blocks,
+            ctx=ctx,
+        )
+
+        struct_media_prompt_token_count = count_tokens(struct_media_prompt)
+        glossary_prompt_token_count = count_tokens(glossary_prompt)
+        tags_prompt_token_count = count_tokens(tags_prompt)
+        summary_prompt_token_count = count_tokens(summary_prompt)
+
+        # 3) synthèse finale
+        final_response = call_ollama_with_retry(struct_media_prompt, model_ollama=MODEL_FR, logger=logger)
+
+        # 3) synthèse finale
+        glossary_response = call_ollama_with_retry(glossary_prompt, model_ollama=MODEL_FR, logger=logger)
+
+        # 3) synthèse finale
+        tags_response = call_ollama_with_retry(tags_prompt, model_ollama=MODEL_FR, logger=logger)
+
+        tags = _parse_jsonish_tags(tags_response)
+        uniq_tags: list[str] = []
+        if not tags:
+            logger.warning("[WARN] Aucun JSON exploitable trouvé dans la réponse pour les tags.")
+        else:
+            # dédoublonnage et filtrage des vides
+            uniq_tags = []
+            seen = set()
+            for t in tags:
+                if t and t not in seen:
+                    uniq_tags.append(t)
+                    seen.add(t)
+
+        # 3) synthèse finale
+        summary_response = call_ollama_with_retry(summary_prompt, model_ollama=MODEL_FR, logger=logger)
+
+        final_response_token_count = count_tokens(final_response)
+        glossary_response_token_count = count_tokens(glossary_response)
+        tags_response_token_count = count_tokens(tags_response)
+        summary_response_token_count = count_tokens(summary_response)
+
+        media_token_count = struct_media_prompt_token_count + final_response_token_count
+        glossary_token_count = glossary_prompt_token_count + glossary_response_token_count
+        tags_token_count = tags_prompt_token_count + tags_response_token_count
+        summary_token_count = summary_prompt_token_count + summary_response_token_count
+
+        logger.debug(
+            f"media_token_count={media_token_count} ---\
+            prompt={struct_media_prompt_token_count} + response = {final_response_token_count}"
+        )
+        logger.debug(
+            f"glossary_token_count={glossary_token_count} ---\
+            prompt={glossary_prompt_token_count} + response = {glossary_response_token_count}"
+        )
+        logger.debug(
+            f"tags_token_count={tags_token_count} ---\
+            prompt={tags_prompt_token_count} + response = {tags_response_token_count}"
+        )
+        logger.debug(
+            f"summary_token_count={summary_token_count} ---\
+                     prompt={summary_prompt_token_count} + response = {summary_response_token_count}"
+        )
 
         logger.debug("[DEBUG] import_normal : envoi vers make_properties")
         # 5) Traitement de l'entête
         meta_final: NoteMetadata = make_properties(
-            content=content,
             meta_yaml=meta_yaml,
-            note_id=note_id,
+            tags=uniq_tags,
+            summary=summary_response if summary_response else "",
             status="archive",
             logger=logger,
         )
@@ -113,29 +243,43 @@ def import_media(filepath: str | Path, note_id: int, ctx: NoteContext) -> bool:
         else:
             logger.warning("[WARN] 🚨 SAV_PATH non défini dans utils.config, sauvegarde ignorée.")
 
-        # 5) Génération de la synthèse
-        synthesis = process_import_syntheses(
-            content=content,
-            note_id=note_id,
-            synthesis_path=output_path,
-            meta_final=meta_final,
-            ctx=ctx,
+        logger.debug("[DEBUG] Assemblage du corps de la synthèse…")
+        final_synth_body_content = make_retranscription(
+            content=final_response,
+            glossary=glossary_response,
             logger=logger,
         )
 
-        if not synthesis:
+        join_synthesis = update_retranscript(
+            final_synth_body_content=final_synth_body_content,
+            note_id=note_id,
+            synthesis_path=output_path,
+            meta_synth_final=meta_final,
+        )
+        if not join_synthesis:
             logger.error(
-                "[ERREUR] 🚨 Problème lors de la génération de la synthèse pour (id=%s)",
+                "[ERREUR] 🚨 Problème lors de l'enregistrement en base (id=%s)",
                 note_id,
             )
-            raise BrainOpsError(
-                "[IMPORT] ❌ Echec de la génération de la synthèse",
-                code=ErrCode.UNEXPECTED,
-                ctx={"step": "import_normal", "note_id": note_id, "filepath": filepath},
+            return False
+
+        synthesis_def = join_header_body(
+            body=final_synth_body_content,
+            meta_yaml=meta_final,
+            filepath=output_path,
+            write_file=True,
+            logger=logger,
+        )
+        if not synthesis_def:
+            logger.error(
+                "[ERREUR] 🚨 Problème lors de l'enregistrement de l'archive (id=%s)",
+                note_id,
             )
-        if exists(src.as_posix()):
+            return False
+
+        if exists(src.as_posix()) and path_is_inside(IMPORTS_PATH, os.path.dirname(src)):
             remove_file(src.as_posix())
-            logger.info("[INFO] Suppression note originale confirmée : %s", src.as_posix())
+            logger.debug("[INFO] Suppression note originale confirmée : %s", src.as_posix())
 
         logger.info("[INFO] 🏁 IMPORT terminé pour (id=%s)", note_id)
         return True

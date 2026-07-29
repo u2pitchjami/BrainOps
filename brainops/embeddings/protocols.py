@@ -110,3 +110,28 @@ class EmbeddingRepositoryProtocol(Protocol):
         """
         Marque un bloc en erreur.
         """
+
+    def get_emb_block(
+        self,
+        note_id: int | None,
+        media_id: int | None,
+        source: str = "embeddings",
+        status: str = "processed",
+        logger: LoggerProtocol | None = None,
+    ) -> tuple[list[str], list[list[float]]]:
+        """
+        Récupère l'ensemble des blocks.
+        """
+
+    def del_temp_block(
+        self,
+        first_index: int,
+        note_id: int | None = None,
+        media_id: int | None = None,
+        source: str = "embeddings",
+        status: str = "processed",
+        logger: LoggerProtocol | None = None,
+    ) -> None:
+        """
+        Récupère l'ensemble des blocks.
+        """

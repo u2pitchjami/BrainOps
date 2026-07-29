@@ -134,9 +134,10 @@ def _build_media_context_section(ctx: NoteContext) -> str:
         """.strip()
 
 
-def build_summary_prompt(
-    blocks: Sequence[Block],
-    ctx: NoteContext,
+def build_struct_media_prompt(
+    profile_section: str,
+    media_context_section: str | None,
+    blocks_section: str,
 ) -> str:
     """
     Construit le prompt générique de synthèse.
@@ -154,9 +155,6 @@ def build_summary_prompt(
     Raises:
         ValueError: Si aucun bloc exploitable n'est fourni.
     """
-    profile_section = _build_analysis_profile_section(ctx)
-    media_context_section = _build_media_context_section(ctx)
-    blocks_section = _build_blocks_section(blocks)
 
     optional_context = f"\n\n{media_context_section}" if media_context_section else ""
 
@@ -235,3 +233,153 @@ Tu peux ajouter des paragraphes, des listes ou des tableaux si cela est pertinen
 N'ajoute pas de préambule tel que « Voici la synthèse ».
 N'ajoute pas de conclusion générique ou décorative.
 """.strip()
+
+
+def build_tags_prompt(
+    media_context_section: str | None,
+    blocks_section: str,
+) -> str:
+    """
+    Construit le prompt générique pour les tags.
+
+    Args:
+        blocks: Blocs retenus par la stratégie de sélection.
+        ctx: Contexte métier complet de la note.
+
+    Returns:
+        Prompt prêt à être envoyé au modèle.
+
+    Raises:
+        ValueError: Si aucun bloc exploitable n'est fourni.
+    """
+
+    optional_context = f"{media_context_section}\n\n" if media_context_section else ""
+
+    return f"""
+    Vous êtes un bot dans une application de lecture différée et votre rôle est de contribuer au balisage automatique.
+    DÉBUT DU CONTENU
+    {optional_context}{blocks_section}
+    FIN DU CONTENU
+
+    Instructions :
+
+    1. Lisez le contenu.
+    2. Suggérez des tags pertinentes qui décrivent ses thèmes, sujets et idées principales. Règles :
+    - Utilisez une variété de tags, incluant des catégories générales, des mots-clés spécifiques\
+        et d'éventuels sous-genres.
+    - Les tags doivent être en français.
+    - S'il s'agit d'un site web connu, vous pouvez également inclure une balise pour le site.\
+    Si la balise n'est pas suffisamment générique, ne l'incluez pas.
+    - Le contenu peut inclure des textes relatifs au consentement aux cookies,\
+        à la publicité et à la politique de confidentialité. \
+        ignorez-les lors du balisage.
+    - Visez 3 à 5 tags.
+    - Si un matériel et/ou un logiciel spécifique est utilisé,\
+        ajoutez des tags avec leurs noms.
+    - S'il n'y a pas de tags pertinentes, laissez le tableau vide.
+    3. Les tags doivent être renvoyées au **format JSON strict**. 4. N’utilisez **pas** YAML,\
+    Markdown, listes à puces ni aucune autre mise en forme.
+    5. Retournez **uniquement** l’objet JSON avec la clé « tags » et un tableau de chaînes de caractères comme valeur.
+    6. **N’incluez **aucune** explication, aucun titre ni aucun texte supplémentaire dans la réponse.
+    7. N’ajoutez **aucun** élément commençant par `#` (hashtags ou titres) ou `-` (listes à puces ou listes).
+    """.strip()
+
+
+def build_glossary_prompt(
+    media_context_section: str | None,
+    blocks_section: str,
+) -> str:
+    """
+    Construit le prompt générique pour le glossaire.
+
+    Args:
+        blocks: Blocs retenus par la stratégie de sélection.
+        ctx: Contexte métier complet de la note.
+
+    Returns:
+        Prompt prêt à être envoyé au modèle.
+
+    Raises:
+        ValueError: Si aucun bloc exploitable n'est fourni.
+    """
+    optional_context = f"{media_context_section}\n\n" if media_context_section else ""
+
+    return f"""
+    Tu es un assistant chargé d'extraire un glossaire à partir d'une section de texte.
+
+    Analyse le texte ci-dessous et identifie les **termes spécifiques, techniques ou récurrents**.
+    Pour chaque terme important, fournis une **brève définition claire** basée uniquement sur le contexte.
+
+    **Ta mission :**
+    - Fusionne les définitions identiques ou similaires
+    - Garde la version la plus claire et pertinente de chaque définition
+    - Trie les entrées par ordre alphabétique
+    - Ignore les doublons ou les entrées trop vagues
+    - le résultat ne doit pas contenir plus de 5 à 10 entrées
+    - Le contenu doit être obligatoirement en **français**.
+
+    **Format attendu :**
+    - Terme : définition
+    - Terme : définition
+
+    Ne définis que les termes réellement importants ou ambigus. Ignore les termes trop génériques.
+
+    Texte à analyser :
+    {optional_context}{blocks_section}
+    """.strip()
+
+
+def build_summary_prompt(
+    media_context_section: str | None,
+    blocks_section: str,
+) -> str:
+    """
+    Construit le prompt générique pour les summary.
+
+    Args:
+        blocks: Blocs retenus par la stratégie de sélection.
+        ctx: Contexte métier complet de la note.
+
+    Returns:
+        Prompt prêt à être envoyé au modèle.
+
+    Raises:
+        ValueError: Si aucun bloc exploitable n'est fourni.
+    """
+    optional_context = f"{media_context_section}\n\n" if media_context_section else ""
+
+    return f"""
+    Résume le texte suivant de façon concise en te concentrant sur :
+    - les arguments principaux,
+    - les éléments de preuve importants,
+    - et les conclusions significatives.
+
+    Consignes :
+    1. Présente le résumé sous forme de puces (bullet points).
+    2. Maximum 5 phrases au total.
+    3. Ne commence ni ne termine par des phrases introductives ou conclusives.
+    5. Ne retourne **que le résumé**, sans titre, explication ou formatage supplémentaire.
+    6. Le résumé doit être en **français**.
+
+    Voici le texte à analyser :
+    {optional_context}{blocks_section}
+    """.strip()
+
+
+def build_prompts_main(
+    blocks: Sequence[Block],
+    ctx: NoteContext,
+) -> tuple[str, str, str, str]:
+    """
+    Main pour la construction de prompts à partir d'embeddings.
+    """
+    profile_section = _build_analysis_profile_section(ctx)
+    media_context_section = _build_media_context_section(ctx)
+    blocks_section = _build_blocks_section(blocks)
+
+    struct_media_prompt = build_struct_media_prompt(profile_section, media_context_section, blocks_section)
+    glossary_prompt = build_glossary_prompt(media_context_section, blocks_section)
+    tags_prompt = build_tags_prompt(media_context_section, blocks_section)
+    summary_prompt = build_summary_prompt(media_context_section, blocks_section)
+
+    return struct_media_prompt, glossary_prompt, tags_prompt, summary_prompt

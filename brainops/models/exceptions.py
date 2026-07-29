@@ -15,6 +15,7 @@ class ErrCode(StrEnum):
     NOFILE = "NOFILE"
     FILEERROR = "FILEERROR"
     VALIDATION = "VALIDATION"
+    EMBEDDINGERROR = "EMBEDDINGERROR"
 
 
 class BrainOpsError(RuntimeError):

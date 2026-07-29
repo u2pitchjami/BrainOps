@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 import time
 from typing import Literal, NotRequired, TypedDict
 
@@ -12,6 +13,11 @@ from brainops.models.note import Note
 
 EventAction = Literal["created", "deleted", "modified", "moved", "reconcile", "audio"]
 EventType = Literal["file", "directory", "script"]
+
+
+class QueueTask(StrEnum):
+    IMPORT = "import"
+    CHECK_EMBEDDING = "check_embedding"
 
 
 class DirEvent(TypedDict, total=True):
@@ -46,6 +52,7 @@ class Event(TypedDict, total=True):
     action: EventAction
     path: str
     # Clés optionnelles selon action/type
+    task: NotRequired[QueueTask]
     src_path: NotRequired[str]
     Note: NotRequired[Note | None]
     new_path: NotRequired[str]  # legacy (si jamais encore utilisé)

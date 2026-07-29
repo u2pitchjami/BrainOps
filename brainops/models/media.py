@@ -54,7 +54,7 @@ class Media:
     checksum: str | None = None
 
     manifest_version: int | None = None
-
+    analysis_profile: str | None = "generic"
     editorial_context: str | None = None
 
     created_at: datetime | None = None
@@ -90,6 +90,7 @@ class Media:
             file_size_bytes=data.get("file_size_bytes"),
             checksum=data.get("checksum"),
             manifest_version=data.get("manifest_version"),
+            analysis_profile=data.get("analysis_profile"),
             editorial_context=editorial_context,
             created_at=data.get("created_at"),
         )
@@ -108,6 +109,7 @@ class Media:
             self.file_size_bytes,
             self.checksum,
             self.manifest_version,
+            self.analysis_profile,
             self.editorial_context,
         )
 

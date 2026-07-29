@@ -10,6 +10,8 @@ import json
 from brainops.models.media import TempBlockRef
 from brainops.sql.temp_blocs.db_error_temp_blocs import mark_bloc_as_error
 from brainops.sql.temp_blocs.db_temp_blocs import (
+    delete_blocks_from_index,
+    get_blocks,
     get_existing_bloc,
     insert_bloc,
     update_bloc_response,
@@ -195,3 +197,36 @@ class TempBlocksEmbeddingRepository:
             block_id=block_id,
             logger=logger,
         )
+
+    def get_emb_block(
+        self,
+        note_id: int | None,
+        media_id: int | None,
+        source: str = "embeddings",
+        status: str = "processed",
+        logger: LoggerProtocol | None = None,
+    ) -> tuple[list[str], list[list[float]]]:
+        """
+        Récupère l'ensemble des blocks.
+        """
+
+        blocks, embeddings = get_blocks(note_id=note_id, media_id=media_id, source=source, status=status, logger=logger)
+        return blocks, embeddings
+
+    def del_temp_block(
+        self,
+        first_index: int,
+        note_id: int | None = None,
+        media_id: int | None = None,
+        source: str = "embeddings",
+        status: str = "processed",
+        logger: LoggerProtocol | None = None,
+    ) -> None:
+        """
+        Récupère l'ensemble des blocks.
+        """
+
+        delete_blocks_from_index(
+            note_id=note_id, media_id=media_id, source=source, status=status, first_index=first_index, logger=logger
+        )
+        return

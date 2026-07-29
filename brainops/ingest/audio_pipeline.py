@@ -4,9 +4,9 @@ from pathlib import Path
 import re
 import shutil
 
+from brainops.embeddings.emb_main import process_transcript_embeddings
 from brainops.embeddings.ollama_provider import OllamaEmbeddingProvider
 from brainops.embeddings.repositories.temp_blocks_repository import TempBlocksEmbeddingRepository
-from brainops.embeddings.transcript_indexer import process_transcript_embeddings
 from brainops.ingest.audio_download import download_audio, find_audio_file, find_audio_for_manifest
 from brainops.ingest.audio_manifest import load_manifest
 from brainops.ingest.builder_note import build_note_shell_from_audio_manifest
@@ -29,6 +29,11 @@ def slugify(value: str) -> str:
     value = value.lower()
     value = re.sub(r"[^\w\s-]", "", value)
     value = re.sub(r"[\s_-]+", "-", value)
+    return value.strip("-")
+
+
+def slugify_note(value: str) -> str:
+    value = re.sub(r"[^a-zA-Z0-9\s]+", "-", value)
     return value.strip("-")
 
 
@@ -118,7 +123,7 @@ def process_audio_manifests(
             note_metadata = build_metadata_from_audio_manifest(manifest=manifest, media_file_path=audio_file)
 
             logger.info(
-                "NoteMetadata built",
+                "NoteMetadata built %s",
                 extra={
                     "note_title": note_metadata.title,
                     "note_author": note_metadata.author,
@@ -151,7 +156,7 @@ def process_audio_manifests(
                 )
 
             # --- Markdown generation ---
-            markdown_filename = f"{slugify(title)}.md"
+            markdown_filename = f"{slugify_note(title)}.md"
             markdown_path = output_dir / markdown_filename
 
             transcript = generate_markdown_from_whisper(
@@ -204,7 +209,6 @@ def process_audio_manifests(
                 provider=OllamaEmbeddingProvider(),
                 repository=TempBlocksEmbeddingRepository(),
                 resume_if_possible=True,
-                logger=logger,
             )
             logger.debug(f"embedding_result = {embedding_result}")
 

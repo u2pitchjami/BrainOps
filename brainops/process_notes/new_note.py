@@ -9,6 +9,7 @@ from pathlib import Path
 
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.models.note import DocumentSemanticType, Note
+from brainops.process_folders.detect_folder_type import FOLDER_TO_DOCUMENT_TYPE, detect_folder_type
 from brainops.process_notes.new_note_utils import (
     _normalize_abs_posix,
 )
@@ -36,6 +37,13 @@ def new_note(file_path: str | Path, logger: LoggerProtocol | None = None) -> int
         # ---- construire le modèle Note ---------------------------------------
         title_sani = sanitize_yaml_title(fp.stem)
         modified_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        folder_type = detect_folder_type(path=fp.as_posix())
+        logger.debug(f"folder_type = {folder_type} -- {fp.as_posix()}")
+        doc_type = FOLDER_TO_DOCUMENT_TYPE.get(
+            folder_type,
+            DocumentSemanticType.UNKNOWN,
+        )
+        logger.debug(f"doc_type = {doc_type}")
         note = Note(
             title=title_sani,
             file_path=fp.as_posix(),
@@ -50,7 +58,7 @@ def new_note(file_path: str | Path, logger: LoggerProtocol | None = None) -> int
             content_hash=None,
             source_hash=None,
             lang=None,
-            doc_type=DocumentSemanticType.UNKNOWN,
+            doc_type=doc_type,
             analysis_profile="generic",
         )
 

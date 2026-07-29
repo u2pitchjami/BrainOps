@@ -5,6 +5,22 @@
 from __future__ import annotations
 
 from brainops.models.folders import FolderType
+from brainops.models.note import DocumentSemanticType
+
+PERSONAL_DOCUMENT_TYPES: tuple[DocumentSemanticType, ...] = (
+    DocumentSemanticType.OTHER,
+    DocumentSemanticType.TUTORIAL,
+    DocumentSemanticType.PERSONAL,
+    DocumentSemanticType.PROJECT,
+)
+
+FOLDER_TO_DOCUMENT_TYPE: dict[FolderType, DocumentSemanticType] = {
+    FolderType.PERSONAL: DocumentSemanticType.PERSONAL,
+    FolderType.PROJECT: DocumentSemanticType.PROJECT,
+    FolderType.STORAGE: DocumentSemanticType.ARTICLE,
+    FolderType.TUTORIAL: DocumentSemanticType.TUTORIAL,
+    FolderType.OTHER: DocumentSemanticType.OTHER,
+}
 
 
 def detect_folder_type(path: str) -> FolderType:
@@ -36,4 +52,4 @@ def detect_folder_type(path: str) -> FolderType:
         return FolderType.GPT
     if "z_technical/" in lower:
         return FolderType.TECHNICAL
-    return FolderType.TECHNICAL
+    return FolderType.OTHER

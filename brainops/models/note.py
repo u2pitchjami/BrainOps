@@ -29,6 +29,7 @@ class DocumentSemanticType(StrEnum):
     VIDEO = "video"
     NOTE = "note"
     UNKNOWN = "unknown"
+    OTHER = "other"
 
     @classmethod
     def from_str(cls, value: str | None) -> DocumentSemanticType:

@@ -45,6 +45,7 @@ def upsert_media_from_model(
                     file_size_bytes,
                     checksum,
                     manifest_version,
+                    analysis_profile,
                     editorial_context
                 )
                 VALUES (
@@ -52,7 +53,7 @@ def upsert_media_from_model(
                     %s, %s, %s,
                     %s, %s,
                     %s, %s,
-                    %s, %s, %s
+                    %s, %s, %s, %s
                 )
                 ON DUPLICATE KEY UPDATE
                     media_type = VALUES(media_type),
@@ -66,6 +67,7 @@ def upsert_media_from_model(
                     checksum = VALUES(checksum),
                     manifest_version = VALUES(manifest_version),
                     editorial_context = VALUES(editorial_context),
+                    analysis_profile = VALUES(analysis_profile),
                     id = LAST_INSERT_ID(id)
                 """,
                 media.to_insert_params(),

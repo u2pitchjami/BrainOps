@@ -10,7 +10,7 @@ import numpy as np
 from numpy.typing import NDArray
 from sklearn.metrics.pairwise import cosine_similarity
 
-from brainops.sql.temp_blocs.db_embeddings_temp_blocs import get_blocks_and_embeddings_by_note
+from brainops.sql.temp_blocs.db_temp_blocs import get_blocks
 from brainops.utils.logger import LoggerProtocol, ensure_logger
 
 MODES = {
@@ -43,8 +43,10 @@ MODES = {
 
 
 def select_top_blocks_by_mode(
-    content: str,
-    note_id: int,
+    note_id: int | None,
+    media_id: int | None,
+    source: str = "embeddings",
+    status: str = "processed",
     mode_def: str = "standard",
     *,
     logger: LoggerProtocol | None = None,
@@ -64,6 +66,9 @@ def select_top_blocks_by_mode(
 
     return select_top_blocks(
         note_id=note_id,
+        media_id=media_id,
+        source=source,
+        status=status,
         ratio=float(cfg["ratio"]),
         return_scores=bool(cfg.get("return_scores", True)),
         use_mmr=bool(cfg["use_mmr"]),
@@ -109,7 +114,10 @@ def _mmr_select(
 
 
 def select_top_blocks(
-    note_id: int,
+    note_id: int | None,
+    media_id: int | None,
+    source: str = "embeddings",
+    status: str = "processed",
     N: int | None = None,
     ratio: float = 0.3,
     return_scores: bool = False,
@@ -125,15 +133,19 @@ def select_top_blocks(
     """
     logger = ensure_logger(logger, __name__)
     logger.debug(
-        "[DEBUG] select_top_blocks(note_id=%s, N=%s, ratio=%.2f, MMR=%s, lambda=%.2f)",
+        "[DEBUG] select_top_blocks(note_id=%s, media_id=%s, source=%s, status=%s,\
+            N=%s, ratio=%.2f, MMR=%s, lambda=%.2f)",
         note_id,
+        media_id,
+        source,
+        status,
         N,
         ratio,
         use_mmr,
         mmr_lambda,
     )
 
-    blocks, embeddings = get_blocks_and_embeddings_by_note(note_id, logger=logger)
+    blocks, embeddings = get_blocks(note_id=note_id, media_id=media_id, source=source, status=status, logger=logger)
     if not blocks or not embeddings:
         logger.warning("[SELECT] Aucun bloc/embedding (note_id=%s).", note_id)
         return []

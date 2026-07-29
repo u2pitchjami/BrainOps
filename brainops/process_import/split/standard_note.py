@@ -4,7 +4,7 @@ process_import.utils.standard_note.py.
 
 from __future__ import annotations
 
-from brainops.embeddings.transcript_indexer import compute_text_hash, normalize_embedding_text
+from brainops.embeddings.emb_main import compute_text_hash, normalize_embedding_text
 from brainops.models.exceptions import BrainOpsError, ErrCode
 from brainops.ollama.ollama_call import call_ollama_with_retry
 from brainops.ollama.prompts import PROMPTS

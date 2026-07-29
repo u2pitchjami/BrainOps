@@ -55,9 +55,8 @@ def build_media_from_manifest(
     language = str(manifest.get("language", "")).strip() or None
     published_at = manifest.get("published_at")
     manifest_version = manifest.get("manifest_version")
-
+    analysis_profile = manifest.get("manifest_version") or "generic"
     raw_editorial_context = manifest.get("editorial_context")
-
     editorial_context = raw_editorial_context.strip() if raw_editorial_context is not None else None
 
     duration = extract_audio_duration_seconds(
@@ -86,6 +85,7 @@ def build_media_from_manifest(
         file_size_bytes=file_size,
         checksum=checksum,
         manifest_version=manifest_version,
+        analysis_profile=analysis_profile,
         editorial_context=editorial_context,
         created_at=None,
     )
