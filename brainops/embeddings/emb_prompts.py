@@ -369,6 +369,10 @@ def build_summary_prompt(
 def build_prompts_main(
     blocks: Sequence[Block],
     ctx: NoteContext,
+    media: bool = True,
+    glossary: bool = True,
+    tags: bool = True,
+    summary: bool = True,
 ) -> tuple[str, str, str, str]:
     """
     Main pour la construction de prompts à partir d'embeddings.
@@ -377,9 +381,11 @@ def build_prompts_main(
     media_context_section = _build_media_context_section(ctx)
     blocks_section = _build_blocks_section(blocks)
 
-    struct_media_prompt = build_struct_media_prompt(profile_section, media_context_section, blocks_section)
-    glossary_prompt = build_glossary_prompt(media_context_section, blocks_section)
-    tags_prompt = build_tags_prompt(media_context_section, blocks_section)
-    summary_prompt = build_summary_prompt(media_context_section, blocks_section)
+    struct_media_prompt = (
+        build_struct_media_prompt(profile_section, media_context_section, blocks_section) if media else ""
+    )
+    glossary_prompt = build_glossary_prompt(media_context_section, blocks_section) if glossary else ""
+    tags_prompt = build_tags_prompt(media_context_section, blocks_section) if tags else ""
+    summary_prompt = build_summary_prompt(media_context_section, blocks_section) if summary else ""
 
     return struct_media_prompt, glossary_prompt, tags_prompt, summary_prompt

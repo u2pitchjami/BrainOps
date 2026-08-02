@@ -26,6 +26,7 @@ _ALLOWED_COLUMNS_MEDIAS: set[str] = {
     "file_size_bytes",
     "checksum",
     "manifest_version",
+    "analysis_profile",
     "editorial_context",
 }
 

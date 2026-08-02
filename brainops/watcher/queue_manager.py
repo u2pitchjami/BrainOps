@@ -5,19 +5,13 @@ queue.
 # watcher/queue_manager.py
 from __future__ import annotations
 
-from datetime import datetime
-import os
 from queue import Queue
 
 from brainops.ingest.audio_pipeline import process_audio_manifests
-from brainops.models.event import Event, QueuedNoteContext
+from brainops.models.event import Event, QueuedNoteContext, QueueTask
 from brainops.models.note import Note
-from brainops.process_import.utils.paths import path_is_inside
-from brainops.process_notes.process_single_note import process_single_note
+from brainops.process_notes.process_single_note import process_single_note, process_single_note_outside_queue
 from brainops.scripts.run_auto_reconcile import run_reconcile_scripts
-from brainops.sql.notes.db_notes_utils import get_note_by_path
-from brainops.sql.notes.db_update_notes import update_obsidian_note
-from brainops.utils.config import IMPORTS_PATH
 from brainops.utils.logger import get_logger
 from brainops.watcher.queue_utils import PendingNoteLockManager, get_lock_key
 
@@ -47,38 +41,26 @@ def enqueue_event(event: Event) -> None:
     - Pour les fichiers, pose un lock logique (note_id ou path).
     - Si le lock existe déjà, l'événement est ignoré (dé-bounce de travail).
     """
-    note_db: Note | None = None
     key: str | None = None
+    note_db: Note | None = None
+    file_path: str = event["path"]
+    raw_task = event.get("task")
+    task = QueueTask(raw_task) if raw_task is not None else None
+
     if event["type"] == "file":
-        file_path: str = event["path"]  # always present (TypedDict total)
-        src_path: str | None = event.get("src_path")
-        note_db = get_note_by_path(file_path, src_path, logger=logger)
-        event["Note"] = note_db
-        note = event.get("Note")
-        logger.debug("[QUEUE] Enfile : %s", note)
-        if note and note.id:
-            note_id = note.id
-            if src_path and not path_is_inside(IMPORTS_PATH, os.path.dirname(file_path)):
-                modified_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                updates = {"file_path": file_path, "modified_at": modified_at}
-                update = update_obsidian_note(note_id, updates, logger=logger)
-                if not update:
-                    logger.error(
-                        "[ERREUR] 🚨 Problème lors de l'enregistrement en base (id=%s)",
-                        note.id,
-                    )
-                logger.info(f"Note {note_id} correctement déplacée vers {file_path}")
-                return
-        else:
-            note_id = None
+        note_db = process_single_note_outside_queue(event=event)
 
-        logger.debug("[QUEUE] note_id : %s", note_id)
-        key = get_lock_key(note_id, file_path)
-        logger.debug("[QUEUE] key : %s", key)
-        if not lock_mgr.acquire(key):
-            logger.debug("[QUEUE] 🚫 Ignoré, déjà en file : %s", key)
+        if not note_db:
+            logger.error(f"Impossible de récupérer Note : {file_path}")
             return
-
+        if not task:
+            return
+        else:
+            key = get_lock_key(note_db.id, file_path)
+            logger.debug("[QUEUE] key : %s", key)
+            if not lock_mgr.acquire(key):
+                logger.debug("[QUEUE] 🚫 Ignoré, déjà en file : %s", key)
+                return
     queued_ctx = QueuedNoteContext(
         note=note_db,
         event=event,

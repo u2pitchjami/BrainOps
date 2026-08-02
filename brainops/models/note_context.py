@@ -103,6 +103,9 @@ class NoteContext:
             if self.note_metadata.project != self.note_db.project:
                 changes["project"] = self.note_metadata.project
 
+            if self.note_metadata.analysis_profile != self.note_db.analysis_profile:
+                changes["analysis_profile"] = self.note_metadata.analysis_profile
+
             if self.note_db.media_id:
                 if self.media:
                     print(f"media: {self.media}")
@@ -114,6 +117,9 @@ class NoteContext:
 
                     if self.note_metadata.media_source != self.media.storage_path:
                         changes["storage_path"] = self.note_metadata.media_source
+
+                    if self.note_metadata.analysis_profile != self.media.analysis_profile:
+                        changes["analysis_profile"] = self.note_metadata.analysis_profile
 
             created = sanitize_created(self.note_metadata.created, logger=self.logger)
             if created != self.note_db.created_at:

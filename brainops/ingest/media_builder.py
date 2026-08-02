@@ -55,7 +55,7 @@ def build_media_from_manifest(
     language = str(manifest.get("language", "")).strip() or None
     published_at = manifest.get("published_at")
     manifest_version = manifest.get("manifest_version")
-    analysis_profile = manifest.get("manifest_version") or "generic"
+    analysis_profile = manifest.get("analysis_profile") or "generic"
     raw_editorial_context = manifest.get("editorial_context")
     editorial_context = raw_editorial_context.strip() if raw_editorial_context is not None else None
 

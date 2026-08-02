@@ -109,20 +109,39 @@ def call_ollama_embedding_with_retry(
     ) from last_error
 
 
-def ollama_generate(endpoint: str, prompt: str, model_ollama: str, *, logger: LoggerProtocol | None = None) -> str:
+def ollama_generate(
+    endpoint: str,
+    prompt: str,
+    model_ollama: str,
+    *,
+    logger: LoggerProtocol | None = None,
+) -> str:
     """
-    Appel texte → texte sur le endpoint GENERATE (stream).
+    Appelle l'endpoint Ollama Generate en streaming.
 
-    Concatène les fragments 'response' du flux JSONL.
+    Concatène les fragments de réponse et journalise les métriques retournées dans le dernier objet JSON du flux.
     """
     logger = ensure_logger(logger, __name__)
-    logger.debug("[DEBUG] ollama_generate model=%s url=%s", model_ollama, endpoint)
+    logger.debug(
+        "ollama_generate model=%s url=%s",
+        model_ollama,
+        endpoint,
+    )
+
+    num_ctx = 24_000
 
     payload: dict[str, Any] = {
         "model": model_ollama,
         "prompt": prompt,
-        "options": {"num_predict": -1, "num_ctx": 16384},
+        "stream": True,
+        "keep_alive": "1m",
+        "options": {
+            "num_predict": -1,
+            "num_ctx": num_ctx,
+        },
     }
+
+    status_code: int | None = None
 
     try:
         with requests.post(
@@ -130,43 +149,115 @@ def ollama_generate(endpoint: str, prompt: str, model_ollama: str, *, logger: Lo
             json=payload,
             stream=True,
             timeout=OLLAMA_TIMEOUT,
-        ) as resp:
-            if resp.status_code == 404 or None:
+        ) as response:
+            status_code = response.status_code
+
+            if status_code == 404:
                 raise BrainOpsError(
-                    "Modèle introuvable sur Ollama (404)", code=ErrCode.OLLAMA, ctx={"status": resp.status_code}
+                    "Modèle introuvable sur Ollama",
+                    code=ErrCode.OLLAMA,
+                    ctx={"status": status_code},
                 )
-            if resp.status_code in (500, 503):
-                raise BrainOpsError("Ollama indisponible)", code=ErrCode.OLLAMA, ctx={"status": resp.status_code})
-            resp.raise_for_status()
 
-            full: list[str] = []
-            for raw in resp.iter_lines(decode_unicode=True):
-                if not raw:
+            if status_code in {500, 503}:
+                raise BrainOpsError(
+                    "Ollama indisponible",
+                    code=ErrCode.OLLAMA,
+                    ctx={"status": status_code},
+                )
+
+            response.raise_for_status()
+
+            fragments: list[str] = []
+            prompt_tokens = 0
+            completion_tokens = 0
+
+            for raw_line in response.iter_lines(decode_unicode=True):
+                if not raw_line:
                     continue
-                try:
-                    obj = json.loads(raw)
-                    piece = obj.get("response", "")
-                    if piece:
-                        full.append(piece)
-                except json.JSONDecodeError:
-                    # tolérant : parfois la ligne n'est pas JSON, on concatène brut
-                    full.append(str(raw))
 
-            text = "".join(full).strip()
+                try:
+                    event: dict[str, Any] = json.loads(raw_line)
+                except json.JSONDecodeError as exc:
+                    logger.warning(
+                        "Ligne JSONL Ollama invalide ignorée: %r",
+                        raw_line,
+                    )
+                    raise BrainOpsError(
+                        "Réponse JSONL Ollama invalide",
+                        code=ErrCode.OLLAMA,
+                        ctx={"line": raw_line},
+                    ) from exc
+
+                error_message = event.get("error")
+                if isinstance(error_message, str) and error_message:
+                    raise BrainOpsError(
+                        f"Erreur retournée par Ollama : {error_message}",
+                        code=ErrCode.OLLAMA,
+                        ctx={"status": status_code},
+                    )
+
+                piece = event.get("response")
+                if isinstance(piece, str) and piece:
+                    fragments.append(piece)
+
+                # Ces valeurs se trouvent généralement sur le dernier événement,
+                # lorsque "done" vaut true.
+                if event.get("done") is True:
+                    raw_prompt_tokens = event.get("prompt_eval_count")
+                    raw_completion_tokens = event.get("eval_count")
+
+                    if isinstance(raw_prompt_tokens, int):
+                        prompt_tokens = raw_prompt_tokens
+
+                    if isinstance(raw_completion_tokens, int):
+                        completion_tokens = raw_completion_tokens
+
+            text = "".join(fragments).strip()
+
             if not text:
-                logger.warning("[WARNING] 🚨 Réponse Ollame vide")
-                raise BrainOpsError("Ollama indisponible)", code=ErrCode.OLLAMA, ctx={"status": resp.status_code})
+                logger.warning("Réponse Ollama vide")
+                raise BrainOpsError(
+                    "Réponse vide retournée par Ollama",
+                    code=ErrCode.OLLAMA,
+                    ctx={"status": status_code},
+                )
+
+            total_tokens = prompt_tokens + completion_tokens
+            occupation = total_tokens / num_ctx * 100.0 if num_ctx > 0 else 0.0
+
+            logger.info(
+                ("Ollama model=%s | ctx=%d | prompt=%d | completion=%d | total=%d | occupation=%.1f%%"),
+                model_ollama,
+                num_ctx,
+                prompt_tokens,
+                completion_tokens,
+                total_tokens,
+                occupation,
+            )
+
+            return text
+
     except requests.exceptions.Timeout as exc:
         raise BrainOpsError(
-            "Timeout sur l'appel generate", code=ErrCode.OLLAMA, ctx={"status": resp.status_code}
+            "Timeout sur l'appel Ollama Generate",
+            code=ErrCode.OLLAMA,
+            ctx={"status": status_code},
         ) from exc
+
     except requests.exceptions.ConnectionError as exc:
         raise BrainOpsError(
-            "Connexion à Ollama impossible (Docker HS ?)", code=ErrCode.OLLAMA, ctx={"status": resp.status_code}
+            "Connexion à Ollama impossible",
+            code=ErrCode.OLLAMA,
+            ctx={"status": status_code},
         ) from exc
+
     except requests.HTTPError as exc:
-        raise BrainOpsError("HTTPError Ollama", code=ErrCode.OLLAMA, ctx={"status": resp.status_code}) from exc
-    return text
+        raise BrainOpsError(
+            "Erreur HTTP lors de l'appel Ollama",
+            code=ErrCode.OLLAMA,
+            ctx={"status": status_code},
+        ) from exc
 
 
 def get_embedding(
@@ -183,8 +274,8 @@ def get_embedding(
     payload: dict[str, Any] = {
         "model": model_ollama,
         "prompt": prompt,
-        "options": {"num_predict": -1, "num_ctx": 4096},
-        "keep_alive": 0,
+        "options": {"num_predict": -1, "num_ctx": 8196},
+        "keep_alive": "30s",
     }
 
     try:

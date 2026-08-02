@@ -5,7 +5,6 @@ from typing import Any, Final
 
 import requests
 
-from brainops.models.event import QueuedNoteContext
 from brainops.utils.config import OLLAMA_CPU_URL, OLLAMA_GPU_URL, PROMETHEUS_URL
 from brainops.utils.logger import get_logger
 
@@ -14,7 +13,7 @@ LOGGER = get_logger("Brainops GPU Guard")
 DEFAULT_MIN_VRAM_MB: Final[int] = 8192
 DEFAULT_MAX_GPU_UTIL_PERCENT: Final[int] = 40
 DEFAULT_MAX_GPU_TEMP_CELSIUS: Final[int] = 82
-DEFAULT_CHECK_INTERVAL_SEC: Final[int] = 180
+DEFAULT_CHECK_INTERVAL_SEC: Final[int] = 5
 DEFAULT_TIMEOUT_SEC: Final[int] = 3600
 DEFAULT_MAX_RETRIES: Final[int] = 20
 DEFAULT_PROMETHEUS_TIMEOUT_SEC: Final[float] = 3.0
@@ -207,9 +206,11 @@ def get_ollama_base_url(
     threshold.
     """
     normalized_model = normalize_model_name(model_name)
+    LOGGER.debug("[OLLAMA ROUTING] Checking Ollama backend for model=%s", normalized_model)
 
     try:
         loaded_models = get_gpu_loaded_models()
+        LOGGER.debug("[OLLAMA ROUTING] Loaded GPU models: %s", loaded_models)
     except OllamaStatusError:
         LOGGER.warning("[OLLAMA ROUTING] Unable to inspect GPU Ollama models.")
     else:
@@ -220,7 +221,7 @@ def get_ollama_base_url(
             )
             return OLLAMA_GPU_URL
 
-    if is_gpu_available(min_required_mb=min_required_mb):
+    if guard_gpu_or_requeue():
         LOGGER.info(
             "[OLLAMA ROUTING] backend=gpu model=%s reason=enough_resources",
             normalized_model,
@@ -235,8 +236,6 @@ def get_ollama_base_url(
 
 
 def guard_gpu_or_requeue(
-    qnc: QueuedNoteContext,
-    *,
     min_required_mb: int = DEFAULT_MIN_VRAM_MB,
     check_interval_sec: int = DEFAULT_CHECK_INTERVAL_SEC,
     timeout_sec: int = DEFAULT_TIMEOUT_SEC,
@@ -255,16 +254,16 @@ def guard_gpu_or_requeue(
         False: processing stopped and possibly requeued
     """
     start_time = time.monotonic()
-
+    retry_count = 0
     while True:
         if is_gpu_available(min_required_mb=min_required_mb):
-            from brainops.ollama.check_ollama import check_ollama_health
+            # from brainops.ollama.check_ollama import check_ollama_health
 
-            if not check_ollama_health(logger=LOGGER):
-                LOGGER.warning("[GPU GUARD] Ollama GPU not ready despite available GPU.")
-            else:
-                LOGGER.info("[GPU GUARD] GPU and Ollama ready.")
-                return True
+            # if not check_ollama_health(logger=LOGGER):
+            #     LOGGER.warning("[GPU GUARD] Ollama GPU not ready despite available GPU.")
+            # else:
+            #     LOGGER.info("[GPU GUARD] GPU and Ollama ready.")
+            return True
 
         elapsed = time.monotonic() - start_time
 
@@ -274,19 +273,14 @@ def guard_gpu_or_requeue(
                 elapsed,
             )
 
-            retry_count = qnc.retry_count + 1
-            qnc.retry_count = retry_count
+            retry_count = retry_count + 1
 
             if retry_count > max_retries:
                 LOGGER.error(
-                    "[GPU GUARD] Max retries exceeded for note_id=%s",
-                    qnc.note.id if qnc.note else None,
+                    "[GPU GUARD] Max retries exceeded",
                 )
                 return False
 
-            from brainops.watcher.queue_manager import replay_enqueue
-
-            replay_enqueue(qnc)
             return False
 
         LOGGER.info(

@@ -25,15 +25,10 @@ from brainops.utils.logger import get_logger
 logger = get_logger("Brainops Audio Pipeline")
 
 
-def slugify(value: str) -> str:
+def slugi(value: str) -> str:
     value = value.lower()
     value = re.sub(r"[^\w\s-]", "", value)
     value = re.sub(r"[\s_-]+", "-", value)
-    return value.strip("-")
-
-
-def slugify_note(value: str) -> str:
-    value = re.sub(r"[^a-zA-Z0-9\s]+", "-", value)
     return value.strip("-")
 
 
@@ -62,8 +57,8 @@ def process_audio_manifests(
     # logger.info("Output will be saved to %s, Markdown copies to %s", workdir, imports_path)
 
     audio_files: list[Path] = []
-    logger.info("Found %d manifest(s) to process.", len(list(manifest_dir.glob("*.yaml"))))
-    for manifest_path in sorted(manifest_dir.glob("*.yaml")):
+    logger.info("Found %d manifest(s) to process.", len(list(manifest_dir.glob("*.yml"))))
+    for manifest_path in sorted(manifest_dir.glob("*.yml")):
         try:
             logger.info("Processing manifest: %s", manifest_path.name)
             manifest = load_manifest(manifest_path)
@@ -74,7 +69,7 @@ def process_audio_manifests(
             title = manifest["title"]
             language = manifest.get("language", "fr")
 
-            folder_name = f"{published_at}-{slugify(title)}"
+            folder_name = f"{published_at}-{slugi(title)}"
             output_dir = workdir / folder_name
             output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -120,20 +115,6 @@ def process_audio_manifests(
 
                     logger.info("Audio downloaded: %s", audio_file)
 
-            note_metadata = build_metadata_from_audio_manifest(manifest=manifest, media_file_path=audio_file)
-
-            logger.info(
-                "NoteMetadata built %s",
-                extra={
-                    "note_title": note_metadata.title,
-                    "note_author": note_metadata.author,
-                    "note_source": note_metadata.source,
-                    "note_created": note_metadata.created,
-                    "note_doc_type": note_metadata.doc_type,
-                    "note_analysis_profile": note_metadata.analysis_profile,
-                },
-            )
-
             # --- Transcription ---
             transcription_path = output_dir / "transcription.json"
             normalized_json_path = output_dir / "normalized_transcription.json"
@@ -156,7 +137,7 @@ def process_audio_manifests(
                 )
 
             # --- Markdown generation ---
-            markdown_filename = f"{slugify_note(title)}.md"
+            markdown_filename = f"{title}.md"
             markdown_path = output_dir / markdown_filename
 
             transcript = generate_markdown_from_whisper(
@@ -169,6 +150,20 @@ def process_audio_manifests(
                 logger=logger,
             )
             logger.info("Markdown generated: %s", markdown_path)
+
+            note_metadata = build_metadata_from_audio_manifest(manifest=manifest, media_file_path=audio_file)
+
+            logger.info(
+                "NoteMetadata built %s",
+                extra={
+                    "note_title": note_metadata.title,
+                    "note_author": note_metadata.author,
+                    "note_source": note_metadata.source,
+                    "note_created": note_metadata.created,
+                    "note_doc_type": note_metadata.doc_type,
+                    "note_analysis_profile": note_metadata.analysis_profile,
+                },
+            )
 
             content = read_note_content(filepath=markdown_path, logger=logger)
             write_metadata_to_note(

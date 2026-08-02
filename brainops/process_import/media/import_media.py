@@ -12,6 +12,9 @@ from brainops.analysis.builder import build_analysis_config
 from brainops.embeddings.emb_prompts import build_prompts_main
 from brainops.embeddings.emb_utils import select_top_blocks_by_mode
 from brainops.embeddings.headers import make_properties
+from brainops.embeddings.ollama_provider import OllamaEmbeddingProvider
+from brainops.embeddings.repositories.temp_blocks_repository import TempBlocksEmbeddingRepository
+from brainops.embeddings.transcript_rebuild import process_rebuild_embeddings
 from brainops.header.get_tags_and_summary import _parse_jsonish_tags
 from brainops.header.header_utils import hash_source
 from brainops.io.paths import exists, remove_file
@@ -23,12 +26,21 @@ from brainops.ollama.ollama_call import call_ollama_with_retry
 from brainops.process_folders.folders import ensure_folder_exists
 from brainops.process_import.join.join_header_body import join_header_body
 from brainops.process_import.media.media_utils import make_retranscription
+from brainops.process_import.split.split_transcription import calculate_segment_count, split_evenly
 from brainops.process_import.split.split_utils import count_tokens
 from brainops.process_import.utils.archive import build_synthesis_path
 from brainops.process_import.utils.divers import rename_file
 from brainops.process_import.utils.paths import path_is_inside
 from brainops.sql.notes.db_update_notes import update_obsidian_note, update_obsidian_tags
-from brainops.utils.config import ANALYSIS_PROFILES_DIR, IMPORTS_PATH, MODEL_FR, SAV_PATH, Z_STORAGE_PATH
+from brainops.sql.temp_blocs.db_temp_blocs import get_blocks
+from brainops.utils.config import (
+    ANALYSIS_PROFILES_DIR,
+    IMPORTS_PATH,
+    MODEL_EMBEDDINGS,
+    MODEL_FR,
+    SAV_PATH,
+    Z_STORAGE_PATH,
+)
 from brainops.utils.files import copy_file_with_date
 from brainops.utils.logger import get_logger
 from brainops.utils.normalization import sanitize_created, sanitize_yaml_title
@@ -96,7 +108,7 @@ def import_media(filepath: str | Path, note_id: int, ctx: NoteContext) -> bool:
 
     Retourne le chemin final (str) ou None en cas d’erreur.
     """
-    if not ctx or not ctx.media or not ctx.media.id:
+    if not ctx or not ctx.media or not ctx.media.id or not ctx.media.duration_seconds or not ctx.media.storage_path:
         raise BrainOpsError(
             "[IMPORT] ❌ Contexte invalide",
             code=ErrCode.CONTEXT,
@@ -138,6 +150,43 @@ def import_media(filepath: str | Path, note_id: int, ctx: NoteContext) -> bool:
             profiles_dir=Path(ANALYSIS_PROFILES_DIR),
             logger=ctx.logger,
         )
+        HOST_ROOT = Path("/mnt/user/Projets/BrainOps")
+        CONTAINER_ROOT = Path("/app")
+
+        host_storage_path = Path(ctx.media.storage_path)
+
+        relative_path = host_storage_path.relative_to(HOST_ROOT)
+        container_audio_path = CONTAINER_ROOT / relative_path
+        json_path = container_audio_path.parent / "normalized_transcription.json"
+
+        result = process_rebuild_embeddings(
+            media_id=ctx.media.id,
+            whisper_json_path=json_path,
+            model_name=MODEL_EMBEDDINGS,
+            provider=OllamaEmbeddingProvider(),
+            repository=TempBlocksEmbeddingRepository(),
+            resume_if_possible=True,
+            logger=logger,
+        )
+
+        if not result:
+            logger.warning("[WARNING] ❌ (id=%s) : Echec Embeddings", ctx.note_db.id)
+        else:
+            logger.info(
+                ("Traitement des embeddings terminé : total=%d, nouveaux=%d, repris=%d, erreurs=%d"),
+                result.total_blocks,
+                result.processed_blocks,
+                result.resumed_blocks,
+                result.failed_blocks,
+            )
+
+        transcript_blocks, _ = get_blocks(
+            note_id=None,
+            media_id=ctx.media.id,
+            source="embeddings",
+            status="processed",
+            logger=logger,
+        )
 
         top_blocks = select_top_blocks_by_mode(
             note_id=None,
@@ -148,23 +197,89 @@ def import_media(filepath: str | Path, note_id: int, ctx: NoteContext) -> bool:
             logger=logger,
         )
 
-        struct_media_prompt, glossary_prompt, tags_prompt, summary_prompt = build_prompts_main(
-            blocks=top_blocks,
-            ctx=ctx,
+        segment_count = calculate_segment_count(
+            ctx.media.duration_seconds / 60.0,
         )
 
-        struct_media_prompt_token_count = count_tokens(struct_media_prompt)
+        transcript_segments = split_evenly(
+            transcript_blocks,
+            segment_count=segment_count,
+        )
+
+        transcript_responses: list[str] = []
+
+        for segment_number, segment_blocks in enumerate(
+            transcript_segments,
+            start=1,
+        ):
+            logger.info(
+                ("Retranscription média segment=%d/%d blocks=%d"),
+                segment_number,
+                len(transcript_segments),
+                len(segment_blocks),
+            )
+
+            (
+                struct_media_prompt,
+                _,
+                _,
+                _,
+            ) = build_prompts_main(
+                blocks=segment_blocks,
+                ctx=ctx,
+                media=True,
+                glossary=False,
+                tags=False,
+                summary=False,
+            )
+
+            estimated_token_count = count_tokens(struct_media_prompt)
+
+            logger.info(
+                ("Prompt retranscription segment=%d/%d estimated_tokens=%d"),
+                segment_number,
+                len(transcript_segments),
+                estimated_token_count,
+            )
+
+            segment_response = call_ollama_with_retry(
+                struct_media_prompt,
+                model_ollama=MODEL_FR,
+                logger=logger,
+            ).strip()
+
+            if not segment_response:
+                raise BrainOpsError(
+                    "Réponse vide lors de la retranscription",
+                    code=ErrCode.OLLAMA,
+                    ctx={
+                        "media_id": ctx.media.id,
+                        "segment": segment_number,
+                        "segment_count": len(transcript_segments),
+                    },
+                )
+
+            transcript_responses.append(segment_response)
+
+        final_response = "\n\n".join(transcript_responses)
+
+        _, glossary_prompt, tags_prompt, summary_prompt = build_prompts_main(
+            blocks=top_blocks,
+            ctx=ctx,
+            media=False,
+            glossary=True,
+            tags=True,
+            summary=True,
+        )
+
         glossary_prompt_token_count = count_tokens(glossary_prompt)
         tags_prompt_token_count = count_tokens(tags_prompt)
         summary_prompt_token_count = count_tokens(summary_prompt)
 
-        # 3) synthèse finale
-        final_response = call_ollama_with_retry(struct_media_prompt, model_ollama=MODEL_FR, logger=logger)
-
-        # 3) synthèse finale
+        # 3) glossaire
         glossary_response = call_ollama_with_retry(glossary_prompt, model_ollama=MODEL_FR, logger=logger)
 
-        # 3) synthèse finale
+        # 3) tags
         tags_response = call_ollama_with_retry(tags_prompt, model_ollama=MODEL_FR, logger=logger)
 
         tags = _parse_jsonish_tags(tags_response)
@@ -183,20 +298,14 @@ def import_media(filepath: str | Path, note_id: int, ctx: NoteContext) -> bool:
         # 3) synthèse finale
         summary_response = call_ollama_with_retry(summary_prompt, model_ollama=MODEL_FR, logger=logger)
 
-        final_response_token_count = count_tokens(final_response)
         glossary_response_token_count = count_tokens(glossary_response)
         tags_response_token_count = count_tokens(tags_response)
         summary_response_token_count = count_tokens(summary_response)
 
-        media_token_count = struct_media_prompt_token_count + final_response_token_count
         glossary_token_count = glossary_prompt_token_count + glossary_response_token_count
         tags_token_count = tags_prompt_token_count + tags_response_token_count
         summary_token_count = summary_prompt_token_count + summary_response_token_count
 
-        logger.debug(
-            f"media_token_count={media_token_count} ---\
-            prompt={struct_media_prompt_token_count} + response = {final_response_token_count}"
-        )
         logger.debug(
             f"glossary_token_count={glossary_token_count} ---\
             prompt={glossary_prompt_token_count} + response = {glossary_response_token_count}"

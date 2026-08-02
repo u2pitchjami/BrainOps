@@ -9,7 +9,9 @@ from enum import StrEnum
 import time
 from typing import Literal, NotRequired, TypedDict
 
+from brainops.models.folders import FolderType
 from brainops.models.note import Note
+from brainops.process_folders.detect_folder_type import detect_folder_type
 
 EventAction = Literal["created", "deleted", "modified", "moved", "reconcile", "audio"]
 EventType = Literal["file", "directory", "script"]
@@ -18,6 +20,17 @@ EventType = Literal["file", "directory", "script"]
 class QueueTask(StrEnum):
     IMPORT = "import"
     CHECK_EMBEDDING = "check_embedding"
+    NONE = "none"
+
+
+def folder_task(path: str) -> QueueTask:
+    foldertype: FolderType = detect_folder_type(path=path)
+    if foldertype == FolderType.DRAFT:
+        return QueueTask.IMPORT
+    elif foldertype == FolderType.STORAGE:
+        return QueueTask.CHECK_EMBEDDING
+    else:
+        return QueueTask.NONE
 
 
 class DirEvent(TypedDict, total=True):

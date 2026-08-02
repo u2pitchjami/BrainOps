@@ -15,7 +15,7 @@ from watchdog.observers import Observer
 from watchdog.observers.polling import PollingObserver
 
 from brainops.io.paths import to_rel
-from brainops.models.event import EventType
+from brainops.models.event import EventType, folder_task
 from brainops.utils.config import (
     BASE_NOTES,
     LOCK_PURGE,
@@ -152,9 +152,15 @@ class NoteHandler(FileSystemEventHandler):
     @staticmethod
     def _to_str(path: Pathish) -> str:
         """
-        Convertit str/bytes/PathLike en str (utf-8 avec surrogateescape).
+        Normalise un chemin en `str`.
 
-        Toujours retourner une str pour unifier le traitement.
+        Accepte `str`, `bytes` ou tout objet implémentant `os.PathLike`.
+        Les chemins fournis sous forme de `bytes` sont décodés en UTF-8 avec
+        `surrogateescape` afin de préserver les noms de fichiers contenant des
+        octets non décodables.
+
+        Returns:
+            Le chemin sous forme de `str`.
         """
         s = os.fspath(path)  # str | bytes
         if isinstance(s, bytes):
@@ -254,10 +260,11 @@ class NoteHandler(FileSystemEventHandler):
         etype: EventType = "directory" if event.is_directory else "file"
         path = normalize_full_path(self._to_str(event.src_path))
         path_rel = to_rel(path)
+        task = folder_task(path_rel)
         if self._should_emit(path_rel, "created", etype):
             if self._logger is not None:
                 self._logger.info("[CREATION] %s → %s", etype.upper(), path_rel)
-            enqueue_event({"type": etype, "action": "created", "path": path_rel})
+            enqueue_event({"type": etype, "action": "created", "path": path_rel, "task": task})
 
     def on_deleted(self, event: FileSystemEvent) -> None:
         """
@@ -268,10 +275,11 @@ class NoteHandler(FileSystemEventHandler):
         etype: EventType = "directory" if event.is_directory else "file"
         path = normalize_full_path(self._to_str(event.src_path))
         path_rel = to_rel(path)
+        task = folder_task(path_rel)
         if self._should_emit(path_rel, "deleted", etype):
             if self._logger is not None:
                 self._logger.info("[SUPPRESSION] %s → %s", etype.upper(), path_rel)
-            enqueue_event({"type": etype, "action": "deleted", "path": path_rel})
+            enqueue_event({"type": etype, "action": "deleted", "path": path_rel, "task": task})
 
     def on_modified(self, event: FileSystemEvent) -> None:
         """
@@ -282,10 +290,11 @@ class NoteHandler(FileSystemEventHandler):
         etype: EventType = "file"
         path = normalize_full_path(self._to_str(event.src_path))
         path_rel = to_rel(path)
+        task = folder_task(path_rel)
         if self._should_emit(path_rel, "modified", etype):
             if self._logger is not None:
                 self._logger.info("[MODIFICATION] FILE → %s", path_rel)
-            enqueue_event({"type": "file", "action": "modified", "path": path_rel})
+            enqueue_event({"type": "file", "action": "modified", "path": path_rel, "task": task})
 
     def on_moved(self, event: FileMovedEvent) -> None:
         """
@@ -301,6 +310,7 @@ class NoteHandler(FileSystemEventHandler):
 
         src_rel = to_rel(src)
         dst_rel = to_rel(dst)
+        task = folder_task(dst_rel)
 
         if not self._should_emit(dst_rel, "moved", etype):
             return
@@ -321,5 +331,6 @@ class NoteHandler(FileSystemEventHandler):
                 "action": "moved",
                 "src_path": src_rel,
                 "path": dst_rel,
+                "task": task,
             }
         )

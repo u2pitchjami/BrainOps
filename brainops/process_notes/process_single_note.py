@@ -10,11 +10,10 @@ from brainops.embeddings.emb_main import process_note_embeddings
 from brainops.embeddings.ollama_provider import OllamaEmbeddingProvider
 from brainops.embeddings.repositories.temp_blocks_repository import TempBlocksEmbeddingRepository
 from brainops.io.paths import exists
-from brainops.models.event import QueuedNoteContext, QueueTask
+from brainops.models.event import Event, QueuedNoteContext, QueueTask
 from brainops.models.exceptions import BrainOpsError
-from brainops.models.folders import FolderType
+from brainops.models.note import Note
 from brainops.models.note_context import NoteContext
-from brainops.process_folders.detect_folder_type import detect_folder_type
 from brainops.process_import.media.import_media import import_media
 from brainops.process_import.normal.import_normal import import_normal
 from brainops.process_notes.check_duplicate import hub_check_duplicate
@@ -23,7 +22,7 @@ from brainops.process_notes.update_note import (
     update_note_context,
 )
 from brainops.sql.notes.db_delete_note import delete_note_by_path
-from brainops.sql.notes.db_notes_utils import file_path_exists_in_db, get_note_by_id
+from brainops.sql.notes.db_notes_utils import get_note_by_id, get_note_by_path
 from brainops.utils.config import (
     MODEL_EMBEDDINGS,
 )
@@ -32,9 +31,86 @@ from brainops.utils.logger import get_logger
 
 logger = get_logger("Brainops Process Note")
 
+
 # ========================================================
 # HUB PRINCIPAL
 # ========================================================
+def process_single_note_outside_queue(event: Event) -> Note | None:
+    """
+    Traite une note selon son emplacement et l'événement détecté
+    hors de la file d'attente.
+    """
+    try:
+        note_db: Note | None = None
+        file_path: str = event["path"]
+        src_path: str | None = event.get("src_path")
+        action = event["action"]
+
+        if event["type"] == "file":
+            if action == "deleted":
+                deleted = delete_note_by_path(file_path, logger=logger)
+                if deleted:
+                    logger.info("[SUPPR] ✅ Note Supprimée: %s", file_path)
+                else:
+                    logger.warning("[SUPPR] ❌ Rien à supprimer pour: %s", file_path)
+                return None
+            else:
+                if not wait_for_file(file_path, logger=logger):
+                    logger.warning("⚠️ Fichier introuvable, skip : %s", file_path)
+                    return None
+            trigger_new = False
+            note_db = event.get("Note")
+
+            if note_db is None:
+                if not exists(file_path):
+                    logger.warning("Note Inexistante")
+                    return None
+                note_db = get_note_by_path(file_path, src_path, logger=logger)
+                if not note_db:
+                    try:
+                        note_id = new_note(file_path, logger=logger)
+                        note_db = get_note_by_id(note_id, logger=logger)
+                        trigger_new = True
+                    except BrainOpsError as exc:
+                        logger.exception("[%s] %s | ctx=%r", exc.code, str(exc), exc.ctx)
+                        return None
+                    logger.info("[INFO] Note créée : (id=%s) %s", note_id, file_path)
+            if note_db:
+                if not note_db or not note_db.id:
+                    return None
+                note_id = note_db.id
+                ctx = NoteContext(note_db=note_db, file_path=file_path, src_path=src_path, logger=logger)
+                logger.debug(
+                    "=== process_single_note start | filepath=%s | id=%s | src=%s",
+                    ctx.file_path,
+                    ctx.note_db.id,
+                    ctx.src_path,
+                )
+                if (
+                    ctx.note_db.title is None
+                    or ctx.note_db.title.strip() == ""
+                    or ctx.note_db.title.strip().lower() == "untitled"
+                ):
+                    logger.debug(
+                        "[DEBUG] Titre vide ou None, mise à jour du titre basé sur le nom de fichier: %s",
+                        Path(file_path).stem,
+                    )
+                    ctx.note_db.title = Path(file_path).stem
+                if not ctx.note_db.id:
+                    logger.warning("Note en anomalie, pas de ctx.note_db.id")
+                    return None
+                update_note_context(ctx)
+
+                if trigger_new:
+                    dup = hub_check_duplicate(ctx=ctx, logger=logger)
+                    if dup:
+                        logger.warning("[DUP] ❌ Note Dupliquée: (id=%s) %s", note_id, file_path)
+                        return None
+                return note_db
+            return None
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.exception("[ERREUR] Process Single Note: %s", exc)
+    return None
 
 
 def process_single_note(queued_ctx: QueuedNoteContext) -> bool:
@@ -43,114 +119,55 @@ def process_single_note(queued_ctx: QueuedNoteContext) -> bool:
     """
     try:
         event = queued_ctx.event
-        trigger_new = False
         file_path = event["path"]
         src_path = event.get("src_path")
-        note_db = event.get("Note")
-        action = event["action"]
+        note_db = queued_ctx.note
         raw_task = queued_ctx.event.get("task")
         task = QueueTask(raw_task) if raw_task is not None else None
 
-        folder_type = detect_folder_type(path=Path(file_path).as_posix())
+        if not note_db or not note_db.id:
+            logger.warning("Note Inexistante")
+            return False
+        ctx = NoteContext(note_db=note_db, file_path=file_path, src_path=src_path, logger=logger)
+        if not ctx or not ctx.note_db.id:
+            return False
 
-        if action != "deleted":
-            if not wait_for_file(file_path, logger=logger):
-                logger.warning("⚠️ Fichier introuvable, skip : %s", file_path)
-                return False
+        if task == QueueTask.IMPORT:
+            if ctx.media and ctx.media.id:
+                logger.info("[PROCESS NOTE] ✈️ (id=%s) → imports : Media détecté", ctx.note_db.id)
+                importok = import_media(ctx.file_path, ctx.note_db.id, ctx=ctx)
+            else:
+                logger.info("[PROCESS NOTE] ✈️ (id=%s) → imports : Article", ctx.note_db.id)
+                importok = import_normal(ctx.file_path, ctx.note_db.id, ctx=ctx)
 
-        if note_db is None:
-            if not exists(file_path):
-                logger.warning("Note Inexistante")
-                return False
-        note_id = file_path_exists_in_db(file_path, src_path, logger=logger)
-        if not note_id:
-            try:
-                note_id = new_note(file_path, logger=logger)
-                trigger_new = True
-            except BrainOpsError as exc:
-                logger.exception("[%s] %s | ctx=%r", exc.code, str(exc), exc.ctx)
-                return False
-            logger.info("[INFO] Note créée : (id=%s) %s", note_id, file_path)
+            if importok:
+                logger.info("[PROCESS NOTE] ✈️ (id=%s) → imports terminé avec succès", ctx.note_db.id)
+            else:
+                logger.warning("[PROCESS NOTE] ✈️ (id=%s) → Echec de l'import", ctx.note_db.id)
 
-        if note_id:
-            if action == "deleted":
-                deleted = delete_note_by_path(file_path, logger=logger)
-                if deleted:
-                    logger.info("[SUPPR] ✅ Note Supprimée: (id=%s) %s", note_id, file_path)
-                else:
-                    logger.warning("[SUPPR] ❌ Rien à supprimer pour: %s", file_path)
-                return True
-
-            if not note_db:
-                note_db = get_note_by_id(note_id, logger=logger)
-                if not note_db:
-                    logger.warning("[WARN] ❌ Note non trouvée: (id=%s) %s", note_id, file_path)
-                    return False
-            ctx = NoteContext(note_db=note_db, file_path=file_path, src_path=src_path, logger=logger)
-            logger.debug(
-                "=== process_single_note start | filepath=%s | id=%s | src=%s",
-                ctx.file_path,
-                ctx.note_db.id,
-                ctx.src_path,
+        if task == QueueTask.CHECK_EMBEDDING:
+            logger.info("[TRIGGER] ✨ (id=%s) : Trigger process", ctx.note_db.id)
+            result = process_note_embeddings(
+                ctx=ctx,
+                model_name=MODEL_EMBEDDINGS,
+                provider=OllamaEmbeddingProvider(),
+                repository=TempBlocksEmbeddingRepository(),
+                resume_if_possible=True,
+                split_method="auto",
+                max_token=1500,
+                max_chars=3800,
             )
-            if (
-                ctx.note_db.title is None
-                or ctx.note_db.title.strip() == ""
-                or ctx.note_db.title.strip().lower() == "untitled"
-            ):
-                logger.debug(
-                    "[DEBUG] Titre vide ou None, mise à jour du titre basé sur le nom de fichier: %s",
-                    Path(file_path).stem,
-                )
-                ctx.note_db.title = Path(file_path).stem
-            if not ctx.note_db.id:
-                logger.warning("Note en anomalie, pas de ctx.note_db.id")
+            if not result:
+                logger.warning("[WARNING] ❌ (id=%s) : Echec Embeddings", ctx.note_db.id)
                 return False
-            update_note_context(ctx)
-
-            if trigger_new:
-                dup = hub_check_duplicate(ctx=ctx, logger=logger)
-                if dup:
-                    logger.warning("[DUP] ❌ Note Dupliquée: (id=%s) %s", note_id, file_path)
-                    return False
-
-            if folder_type == FolderType.DRAFT:
-                if ctx.media and ctx.media.id:
-                    logger.info("[PROCESS NOTE] ✈️ (id=%s) → imports : Media détecté", ctx.note_db.id)
-                    importok = import_media(ctx.file_path, ctx.note_db.id, ctx=ctx)
-                else:
-                    logger.info("[PROCESS NOTE] ✈️ (id=%s) → imports : Article", ctx.note_db.id)
-                    importok = import_normal(ctx.file_path, ctx.note_db.id, ctx=ctx)
-
-                if importok:
-                    logger.info("[PROCESS NOTE] ✈️ (id=%s) → imports terminé avec succès", ctx.note_db.id)
-                else:
-                    logger.warning("[PROCESS NOTE] ✈️ (id=%s) → Echec de l'import", ctx.note_db.id)
-
-            if task == "check_embedding" or folder_type == FolderType.STORAGE:
-                logger.info("[TRIGGER] ✨ (id=%s) : Trigger process", ctx.note_db.id)
-                result = process_note_embeddings(
-                    ctx=ctx,
-                    model_name=MODEL_EMBEDDINGS,
-                    provider=OllamaEmbeddingProvider(),
-                    repository=TempBlocksEmbeddingRepository(),
-                    resume_if_possible=True,
-                    split_method="auto",
-                    max_token=1500,
-                    max_chars=3800,
+            else:
+                logger.info(
+                    ("Traitement des embeddings terminé : total=%d, nouveaux=%d, repris=%d, erreurs=%d"),
+                    result.total_blocks,
+                    result.processed_blocks,
+                    result.resumed_blocks,
+                    result.failed_blocks,
                 )
-                if not result:
-                    logger.warning("[WARNING] ❌ (id=%s) : Echec Embeddings", ctx.note_db.id)
-                    return False
-                else:
-                    logger.info(
-                        ("Traitement des embeddings terminé : total=%d, nouveaux=%d, repris=%d, erreurs=%d"),
-                        result.total_blocks,
-                        result.processed_blocks,
-                        result.resumed_blocks,
-                        result.failed_blocks,
-                    )
-        return True
 
     except Exception as exc:  # pylint: disable=broad-except
         logger.exception("[ERREUR] Process Single Note: %s", exc)
